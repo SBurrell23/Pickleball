@@ -49,7 +49,7 @@ const MAX_TEXTS = 8;
 // a read on the ball, not a spotlight on the court, so even with the ball at
 // the top of its arc it is only a little wider than the landing spot itself.
 const MARKER_RING_INNER = 0.94;  // fraction of the outer radius -- a thin hoop
-const MARKER_MIN_R = 0.30;       // matches the landing marker's own radius
+const MARKER_MIN_R = 0.18;       // matches the landing marker's own radius
 const MARKER_MAX_R = 0.78;       // barely wider than the marker, even up high
 const MARKER_CEIL_Y = 7.0;       // height at which the ring stops growing
 
@@ -122,7 +122,7 @@ export class Effects {
 
     // ---- landing marker ----
     this.marker = new THREE.Mesh(
-      new THREE.RingGeometry(0.20, 0.30, 32),
+      new THREE.RingGeometry(0.115, 0.175, 32),
       new THREE.MeshBasicMaterial({
         color: 0xffe066, transparent: true, opacity: 0.0,
         depthWrite: false, side: THREE.DoubleSide,
