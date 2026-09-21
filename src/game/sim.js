@@ -434,7 +434,7 @@ export class Sim {
     if (b.shotCount === 1 && b.bouncesSinceHit === 1) {
       const recvSide = sideOf(1 - this.serveTeam);
       if (!this.inServiceBox(x, z, recvSide, this.serveTargetXSign)) {
-        this.awardPoint(1 - this.serveTeam, 'Serve out');
+        this.awardPoint(1 - this.serveTeam, this.serveFaultReason(x, z, recvSide));
       }
       return;
     }
@@ -447,6 +447,17 @@ export class Sim {
     }
 
     if (!good) this.awardPoint(1 - hitterTeam, 'Out');
+  }
+
+  // Serving has three distinct ways to fail and they are worth telling apart:
+  // a player who cannot see which one they committed will conclude the rule
+  // is not enforced at all.
+  serveFaultReason(x, z, recvSide) {
+    const t = COURT.LINE_W * 0.5 + BALL.R;
+    if (Math.sign(z) !== recvSide) return 'Serve into the net';
+    if (Math.abs(z) < COURT.KITCHEN - t) return 'Serve in the kitchen';
+    if (Math.abs(x) > COURT.HALF_W + t || Math.abs(z) > COURT.HALF_L + t) return 'Serve out';
+    return 'Wrong box — serve cross-court';
   }
 
   awardPoint(team, reason) {

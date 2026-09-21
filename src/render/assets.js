@@ -48,17 +48,12 @@ function courtGrain(base, light, dark, repeat, density = 11000) {
     g.fillStyle = base;
     g.fillRect(0, 0, w, h);
 
-    // Very broad tonal drift, so large areas are not perfectly even.
-    for (let i = 0; i < 18; i++) {
-      g.globalAlpha = 0.03 + Math.random() * 0.035;
-      g.fillStyle = Math.random() < 0.5 ? light : dark;
-      g.beginPath();
-      g.arc(Math.random() * w, Math.random() * h, 30 + Math.random() * 80, 0, Math.PI * 2);
-      g.fill();
-    }
-
-    // The grain itself: single-pixel grit, half lighter and half darker so it
-    // reads as texture rather than as a tint.
+    // Deliberately no large-scale features. Broad blobs are exactly what makes
+    // a tiled texture readable AS tiles, and the kitchen is a small enough
+    // strip that any of them show up as an obvious repeat. Uniform fine grit
+    // tiles invisibly.
+    // Grit: single-pixel, half lighter and half darker, so it reads as
+    // texture rather than as a tint.
     for (let i = 0; i < density; i++) {
       g.globalAlpha = 0.05 + Math.random() * 0.13;
       g.fillStyle = Math.random() < 0.5 ? light : dark;
@@ -73,13 +68,13 @@ function courtGrain(base, light, dark, repeat, density = 11000) {
 // wear, and faint squeegee streaks from when it was rolled out.
 function apronTexture() {
   return canvasTex(512, 512, (g, w, h) => {
-    g.fillStyle = '#2b3a2f';
+    g.fillStyle = '#3d4f41';
     g.fillRect(0, 0, w, h);
 
     // Broad patchiness so large areas are not uniform.
     for (let i = 0; i < 46; i++) {
       g.globalAlpha = 0.05 + Math.random() * 0.07;
-      g.fillStyle = Math.random() < 0.5 ? '#35492f' : '#1f2b23';
+      g.fillStyle = Math.random() < 0.5 ? '#4a6040' : '#2e3c31';
       g.beginPath();
       g.arc(Math.random() * w, Math.random() * h, 40 + Math.random() * 110, 0, Math.PI * 2);
       g.fill();
@@ -90,7 +85,7 @@ function apronTexture() {
     for (let i = 0; i < 150; i++) {
       const y = Math.random() * h;
       g.globalAlpha = 0.03 + Math.random() * 0.05;
-      g.strokeStyle = Math.random() < 0.5 ? '#3c4f38' : '#212d24';
+      g.strokeStyle = Math.random() < 0.5 ? '#50664a' : '#303e33';
       g.lineWidth = 1 + Math.random() * 4;
       g.beginPath();
       const x = Math.random() * w;
@@ -103,7 +98,7 @@ function apronTexture() {
     for (let i = 0; i < 16000; i++) {
       g.globalAlpha = 0.06 + Math.random() * 0.20;
       const t = Math.random();
-      g.fillStyle = t < 0.45 ? '#3a4f36' : t < 0.8 ? '#1d2720' : '#475c41';
+      g.fillStyle = t < 0.45 ? '#4d6347' : t < 0.8 ? '#2b382d' : '#5a7052';
       const r = 0.7 + Math.random() * 1.7;
       g.fillRect(Math.random() * w, Math.random() * h, r, r);
     }
@@ -181,7 +176,7 @@ export function buildCourt(quality = 'high') {
     new THREE.BoxGeometry(COURT.HALF_W * 2 + 0.02, 0.02, COURT.HALF_L * 2 + 0.02),
     mat(0x2f7fc4, { roughness: 0.9 })
   );
-  surface.material.map = courtGrain('#2f7fc4', '#5ba3dd', '#1d568e', [9, 18]);
+  surface.material.map = courtGrain('#2f7fc4', '#5ba3dd', '#1d568e', [22, 48], 16000);
   surface.position.y = 0.006;
   surface.receiveShadow = quality !== 'off';
   root.add(surface);
@@ -189,7 +184,7 @@ export function buildCourt(quality = 'high') {
   // The kitchen gets its own shade so the shot-type boundary is readable
   // from the play camera at a glance.
   const kitchenMat = mat(0xffffff, { roughness: 0.9 });
-  kitchenMat.map = courtGrain('#1fa091', '#45c4b4', '#12665c', [9, 4]);
+  kitchenMat.map = courtGrain('#1d9c74', '#43c095', '#11634a', [22, 8], 16000);
   for (const s of [-1, 1]) {
     const k = new THREE.Mesh(
       new THREE.BoxGeometry(COURT.HALF_W * 2, 0.02, COURT.KITCHEN),
@@ -203,7 +198,7 @@ export function buildCourt(quality = 'high') {
   // Lines
   // The lines are painted on the same surface, so they carry the same grit.
   const lineMat = mat(0xffffff, { roughness: 0.7, emissive: 0x223344, emissiveIntensity: 0.10 });
-  lineMat.map = courtGrain('#f4f7fb', '#ffffff', '#c9d3de', [3, 40], 8000);
+  lineMat.map = courtGrain('#f4f7fb', '#ffffff', '#ccd6e0', [4, 60], 9000);
   const line = (x, z, w, l) => {
     const m = new THREE.Mesh(new THREE.BoxGeometry(w, 0.012, l), lineMat);
     m.position.set(x, 0.021, z);
@@ -425,7 +420,7 @@ function buildCrowd() {
   for (const s of [-1, 1]) {
     for (let r = 0; r < rows; r++) {
       for (let k = 0; k < perRow; k++) {
-        const x = s * (APRON_X + 0.6 + r * 0.9);
+        const x = s * (APRON_X + 1.5 + r * 0.9);
         const z = (k / (perRow - 1) - 0.5) * COURT.HALF_L * 1.7;
         const y = 0.42 + r * 0.42;
         seeds.push({

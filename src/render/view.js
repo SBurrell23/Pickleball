@@ -277,7 +277,9 @@ export class View {
     let px, py, pz, lx, ly, lz;
 
     if (mode === 'broadcast') {
-      px = 0; py = 11.5; pz = s * (COURT.HALF_L + 7.0);
+      // Pulled well back: on the narrow lens this was framing less than the
+      // follow camera, which is not what a broadcast view is for.
+      px = 0; py = 15.0; pz = s * (COURT.HALF_L + 13.0);
       lx = 0; ly = 0.4; lz = 0;
     } else if (mode === 'fixed') {
       px = 0; py = 7.5; pz = s * (COURT.HALF_L + 7.9);
