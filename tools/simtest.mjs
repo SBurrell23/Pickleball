@@ -22,7 +22,11 @@ function playGame(seed, diffs, mode = 'singles', verbose = false) {
   };
   const dt = 1 / 60;
 
-  while (sim.phase !== PHASE.GAMEOVER && stats.ticks < 60 * 60 * 12) {
+  // Doubles rallies run much longer, and a deuce at 12-13 is a normal game,
+  // not a stuck one -- give it room rather than cutting it off and calling it
+  // a failure.
+  const maxTicks = 60 * 60 * (mode === 'doubles' ? 30 : 15);
+  while (sim.phase !== PHASE.GAMEOVER && stats.ticks < maxTicks) {
     const inputs = [];
     for (const p of sim.players) inputs[p.idx] = updateBot(sim, p, bots[p.idx], dt);
     sim.step(dt, inputs);
@@ -48,6 +52,7 @@ function playGame(seed, diffs, mode = 'singles', verbose = false) {
       }
     }
   }
+  stats.cutOff = sim.phase !== PHASE.GAMEOVER;
   return { sim, stats };
 }
 
@@ -104,7 +109,8 @@ for (let s = 1; s <= 3; s++) {
   const a2 = d.stats.rallies.reduce((x, y) => x + y, 0) / d.stats.rallies.length;
   dblRuns.push({ sim: d.sim, avg: a2 });
   console.log(`  game ${s}: ${d.sim.score[0]}-${d.sim.score[1]} ` +
-    `winner=${d.sim.winner} avg rally=${a2.toFixed(2)}`);
+    `winner=${d.sim.winner} avg rally=${a2.toFixed(2)}` +
+    (d.stats.cutOff ? '  << hit the time cap' : ''));
 }
 const dblAvg = dblRuns.reduce((a, r) => a + r.avg, 0) / dblRuns.length;
 const dblFinished = dblRuns.filter((r) => r.sim.winner >= 0).length;
