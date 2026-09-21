@@ -182,6 +182,16 @@ export class Menus {
       case 'quit': this.cb.onQuit?.(); break;
       case 'rematch': this.cb.onRematch?.(); break;
       case 'leaveLobby': this.cb.onLeave?.(); this.show('main'); break;
+      case 'changeChar':
+        this.pendingRoute = 'lobby';
+        this.show('char');
+        break;
+      case 'lobbyMode':
+        this.data.mode = val;
+        this.cb.onLobbyMode?.(val);
+        this.render();
+        break;
+      case 'toLobby': this.cb.onBackToLobby?.(); break;
       default: break;
     }
   }
@@ -194,6 +204,7 @@ export class Menus {
     const config = { mode: this.data.mode || 'singles' };
     if (this.pendingRoute === 'local') this.cb.onStartLocal?.(profile, config);
     else if (this.pendingRoute === 'host') this.cb.onHost?.(profile, config);
+    else if (this.pendingRoute === 'lobby') this.cb.onChangeCharacter?.(profile);
     else this.show('join', { profile });
   }
 
@@ -437,12 +448,16 @@ export class Menus {
       </div>`;
     }).join('');
 
+    // Reached from the lobby, this screen is only for swapping character: the
+    // match type and CPU difficulty belong to whoever set the room up.
+    const inLobby = this.pendingRoute === 'lobby';
     const routeLabel = this.pendingRoute === 'local' ? 'Start Match'
-      : this.pendingRoute === 'host' ? 'Create Room' : 'Continue';
+      : this.pendingRoute === 'host' ? 'Create Room'
+        : inLobby ? 'Confirm' : 'Continue';
 
     const diff = this.settings.get('difficulty');
     const DIFFS = [['easy', 'Easy'], ['normal', 'Normal'], ['hard', 'Hard']];
-    const modePicker = this.pendingRoute === 'join' ? '' : `
+    const modePicker = (this.pendingRoute === 'join' || inLobby) ? '' : `
       <div class="picker">
         <span class="picker-label">Match</span>
         <div class="seg">
@@ -470,13 +485,14 @@ export class Menus {
           <label class="field">
             <span>Name</span>
             <input id="playerName" maxlength="14" placeholder="Player"
-              value="${escapeAttr(this.settings.get('playerName'))}">
+              value="${escapeAttr(inLobby && this.data.myName
+                ? this.data.myName : this.settings.get('playerName'))}">
           </label>
           ${modePicker}
         </div>
       </div>
       <div class="menu-foot">
-        <button data-act="back" data-val="main">Back</button>
+        <button data-act="back" data-val="${inLobby ? 'lobby' : 'main'}">Back</button>
         <button class="primary" data-act="confirmChar">${routeLabel}</button>
       </div>
     </div>`;
@@ -523,9 +539,17 @@ export class Menus {
       <ul class="player-list">${players}</ul>
       <p class="muted">${have} of ${need} players — ${d.mode === 'doubles' ? 'Doubles' : 'Singles'}.
         ${have < need ? 'Empty slots are filled by the CPU.' : ''}</p>
+      ${d.isHost ? `<div class="picker">
+        <span class="picker-label">Match</span>
+        <div class="seg">
+          <button class="${d.mode === 'singles' ? 'on' : ''}" data-act="lobbyMode" data-val="singles">Singles</button>
+          <button class="${d.mode === 'doubles' ? 'on' : ''}" data-act="lobbyMode" data-val="doubles">Doubles</button>
+        </div>
+      </div>` : ''}
       <p class="muted" id="menuStatus">${d.status || ''}</p>
     `, `
       <button data-act="leaveLobby">Leave</button>
+      <button data-act="changeChar">Change Character</button>
       ${d.isHost
         ? `<button class="primary" data-act="startMatch" ${canStart ? '' : 'disabled'}>Start Match</button>`
         : `<button class="primary" data-act="ready">${d.ready ? 'Not ready' : 'Ready'}</button>`}
@@ -635,6 +659,7 @@ export class Menus {
     `, `
       <button data-act="quit">Menu</button>
       ${d.canRematch ? '<button class="primary" data-act="rematch">Rematch</button>' : ''}
+      ${d.canLobby ? '<button class="primary" data-act="toLobby">Back to Lobby</button>' : ''}
     `);
   }
 

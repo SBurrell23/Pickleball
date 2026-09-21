@@ -326,6 +326,12 @@ export class Net {
       case 'pong':
         rec.ping.onPong(msg.i, msg.c, msg.r, now);
         break;
+      case 'profile':
+        // Character swapped in the lobby. Kept separate from 'ready' so it
+        // does not have to masquerade as a readiness toggle.
+        rec.profile = { ...rec.profile, ...msg.profile };
+        this.h.onLobbyChange?.();
+        break;
       case 'ready':
         rec.profile = { ...rec.profile, ...msg.profile };
         rec.ready = !!msg.ready;
@@ -361,6 +367,9 @@ export class Net {
         break;
       case 'start':
         this.h.onStart?.(msg);
+        break;
+      case 'toLobby':
+        this.h.onReturnToLobby?.();
         break;
       case 'snap':
         this.h.onSnapshot?.(msg);

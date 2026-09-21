@@ -33,6 +33,9 @@ class App {
       onQuit: () => this.quitToMenu(),
       onRematch: () => this.rematch(),
       onLeave: () => this.teardownNet(),
+      onBackToLobby: () => this.backToLobby(true),
+      onChangeCharacter: (p) => this.changeCharacter(p),
+      onLobbyMode: (m) => this.setLobbyMode(m),
     });
 
     // The court doubles as the menu backdrop, so it lives for the whole
@@ -181,13 +184,55 @@ class App {
   onMatchFinished(result) {
     setTimeout(() => {
       if (!this.game) return;
+      const online = this.game.mode !== 'local';
       this.menus.show('results', {
         won: result.won, score: result.score, stats: result.stats,
-        canRematch: this.game.mode === 'local',
+        canRematch: !online,
+        // Online players should be able to run it back without re-sharing a
+        // room code, so the lobby is one click away.
+        canLobby: online && !!this.net,
         returnTo: 'results',
       });
       this.input.enabled = false;
     }, 2200);
+  }
+
+  // Drop out of a finished online match and back to the lobby, ready to start
+  // another. The host brings everyone with it; a client only moves itself.
+  backToLobby(broadcast) {
+    if (!this.net) { this.quitToMenu(); return; }
+    this.endMatch();
+    this.matchStarted = false;
+    this.paused = false;
+    this.input.enabled = true;
+    if (this.net.isHost) {
+      if (broadcast) this.net.sendCtrl({ t: 'toLobby' });
+      this.refreshLobby();
+      this.menus.show('lobby', this.lobby);
+    } else {
+      this.lobby = { ...(this.lobby || {}), isHost: false, ready: false };
+      this.menus.show('lobby', this.lobby);
+    }
+  }
+
+  changeCharacter(profile) {
+    if (!this.net) { this.menus.show('main'); return; }
+    if (this.net.isHost) {
+      this.hostProfile = { ...this.hostProfile, ...profile };
+      this.lobby = { ...this.lobby, myName: this.hostProfile.name };
+      this.refreshLobby();
+    } else {
+      this.joinProfile = { ...this.joinProfile, ...profile };
+      this.lobby = { ...this.lobby, myName: this.joinProfile.name };
+      this.net.sendCtrl({ t: 'profile', profile: this.joinProfile });
+    }
+    this.menus.show('lobby', this.lobby);
+  }
+
+  setLobbyMode(mode) {
+    if (!this.net || !this.net.isHost) return;
+    this.hostConfig = { ...this.hostConfig, mode };
+    this.refreshLobby();
   }
 
   rematch() {
@@ -229,7 +274,9 @@ class App {
     this.net = this.makeNet();
     try {
       const code = await this.net.host(profile, config);
-      this.lobby = { code, isHost: true, mode: config.mode, players: [] };
+      this.lobby = {
+        code, isHost: true, mode: config.mode, players: [], myName: profile.name,
+      };
       this.refreshLobby();
       this.menus.show('lobby', this.lobby);
     } catch (err) {
@@ -244,7 +291,10 @@ class App {
     this.net = this.makeNet();
     try {
       await this.net.join(code, profile);
-      this.lobby = { code, isHost: false, mode: 'singles', players: [], ready: false };
+      this.lobby = {
+        code, isHost: false, mode: 'singles', players: [], ready: false,
+        myName: profile.name,
+      };
       this.menus.show('lobby', this.lobby);
     } catch (err) {
       this.menus.show('join', { error: err.message || 'Could not join', profile });
@@ -258,6 +308,7 @@ class App {
       onLobbyChange: () => this.refreshLobby(),
       onLobby: (msg) => this.onLobbyMessage(msg),
       onStart: (msg) => this.onStartMessage(msg),
+      onReturnToLobby: () => this.backToLobby(false),
       onSnapshot: (msg) => this.game && this.game.onSnapshot(msg),
       onEvents: (ev) => this.game && this.game.onRemoteEvents(ev),
       onInput: (rec, msg) => {
