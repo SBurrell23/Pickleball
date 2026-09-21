@@ -69,7 +69,6 @@ const CONTROLS = [
   ['Release Left Click', 'Swing. Land the marker in the sweet spot.'],
   ['Right Click / Space', 'Hold while swinging for a soft shot (lob from deep, drop at the net).'],
   ['Shift', 'Dash. Costs stamina.'],
-  ['E', 'Star shot, when the meter is full and you time a full-power drive.'],
   ['Esc', 'Pause.'],
 ];
 

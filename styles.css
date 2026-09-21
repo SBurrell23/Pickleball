@@ -57,11 +57,13 @@ html, body {
 .hud-canvas { position: absolute; inset: 0; pointer-events: none; z-index: 2; }
 .hud-dom { position: absolute; inset: 0; pointer-events: none; z-index: 3; }
 
+/* Top-left, not centred: the middle of the screen is the sightline straight
+   down the court and the scoreboard was sitting in it. */
 .hud-top {
   position: absolute;
   top: 0; left: 0; right: 0;
   display: flex;
-  justify-content: center;
+  justify-content: flex-start;
   padding: 14px 20px 0;
 }
 
@@ -73,7 +75,7 @@ html, body {
   background: var(--ink);
   border: 3px solid var(--line);
   border-radius: 999px;
-  padding: 7px 22px;
+  padding: 6px 18px;
   box-shadow: 0 5px 0 rgba(6, 16, 24, 0.55), 0 12px 26px rgba(6, 20, 30, 0.4);
 }
 
@@ -93,7 +95,7 @@ html, body {
 }
 
 .team-score {
-  font-size: 32px;
+  font-size: 28px;
   line-height: 1;
   color: var(--ball);
   font-variant-numeric: tabular-nums;

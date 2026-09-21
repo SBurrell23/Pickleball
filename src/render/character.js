@@ -13,23 +13,47 @@ function m(color, flat = true, extra = {}) {
   });
 }
 
-// Body silhouettes. Each is a single floating volume -- no shoulders, no waist.
-function bodyGeo(kind, bulk) {
-  const r = 0.225 * bulk;
+// Body silhouettes, lathed from a profile so every one is genuinely round --
+// the shape varies, the roundness does not. Profile points are (radius, height)
+// in the rig's own space, bottom to top.
+function bodyProfile(kind, bulk) {
+  const r = 0.235 * bulk;
   switch (kind) {
-    case 'blocky':
-      return new THREE.CylinderGeometry(r * 1.02, r * 0.94, 0.60, 6);
-    case 'slim':
-      return new THREE.CapsuleGeometry(r * 0.82, 0.44, 4, 12);
-    default: // tapered
-      return new THREE.CylinderGeometry(r * 0.80, r * 1.06, 0.62, 14);
+    case 'blocky': // wide barrel
+      return [[0, 0.06], [r * 0.80, 0.07], [r * 1.05, 0.22], [r * 1.08, 0.60],
+        [r * 0.96, 0.78], [r * 0.62, 0.87], [0, 0.90]];
+    case 'slim': // narrow and tall
+      return [[0, 0.06], [r * 0.58, 0.07], [r * 0.74, 0.24], [r * 0.70, 0.62],
+        [r * 0.60, 0.80], [r * 0.38, 0.88], [0, 0.90]];
+    default: // tapered: broad base, narrow shoulders
+      return [[0, 0.06], [r * 0.74, 0.07], [r * 1.00, 0.24], [r * 0.86, 0.58],
+        [r * 0.66, 0.78], [r * 0.42, 0.87], [0, 0.90]];
   }
 }
 
+function bodyGeo(kind, bulk) {
+  const pts = bodyProfile(kind, bulk).map(([x, y]) => new THREE.Vector2(x, y));
+  return new THREE.LatheGeometry(pts, 20);
+}
+
+// Radius of the body at a given height, so trim rings sit flush on the surface.
+function radiusAt(kind, bulk, y) {
+  const pts = bodyProfile(kind, bulk);
+  for (let i = 0; i < pts.length - 1; i++) {
+    const [r0, y0] = pts[i], [r1, y1] = pts[i + 1];
+    if (y >= y0 && y <= y1) {
+      const t = (y - y0) / Math.max(1e-5, y1 - y0);
+      return r0 + (r1 - r0) * t;
+    }
+  }
+  return pts[pts.length - 2][0];
+}
+
+// Both head types are round; they differ in proportion, not in facet count.
 function headGeo(kind) {
-  return kind === 'square'
-    ? new THREE.BoxGeometry(0.30, 0.30, 0.30)
-    : new THREE.SphereGeometry(0.175, 16, 12);
+  const g = new THREE.SphereGeometry(kind === 'square' ? 0.188 : 0.176, 18, 14);
+  if (kind === 'square') g.scale(1.0, 0.92, 0.96);
+  return g;
 }
 
 // Headwear is the only individuating detail left, so it has to carry the
@@ -95,21 +119,56 @@ function buildCrest(kind, colors) {
   return g;
 }
 
+// A pickleball paddle is a rounded slab, not a rectangle. Built from a shape
+// with quadratic corners and extruded with a bevel so the rim catches light.
+function paddleShape(w, h, r) {
+  const sh = new THREE.Shape();
+  const hw = w / 2, hh = h / 2;
+  sh.moveTo(-hw + r, -hh);
+  sh.lineTo(hw - r, -hh);
+  sh.quadraticCurveTo(hw, -hh, hw, -hh + r);
+  sh.lineTo(hw, hh - r);
+  sh.quadraticCurveTo(hw, hh, hw - r, hh);
+  sh.lineTo(-hw + r, hh);
+  sh.quadraticCurveTo(-hw, hh, -hw, hh - r);
+  sh.lineTo(-hw, -hh + r);
+  sh.quadraticCurveTo(-hw, -hh, -hw + r, -hh);
+  return sh;
+}
+
+function paddleFaceGeo(w, h, r, depth) {
+  const geo = new THREE.ExtrudeGeometry(paddleShape(w, h, r), {
+    depth, bevelEnabled: true, bevelThickness: 0.006, bevelSize: 0.007,
+    bevelSegments: 2, curveSegments: 8,
+  });
+  geo.translate(0, 0, -depth / 2);
+  return geo;
+}
+
 function buildPaddle(colors) {
   const g = new THREE.Group();
+  // ExtrudeGeometry emits two groups: 0 is the flat caps, 1 is the extruded
+  // rim. Giving them separate materials paints the face in the character's
+  // colour on BOTH sides with a trim edge around it -- a stacked slab left the
+  // paddle looking black whenever the camera was behind it.
   const faceMat = m(colors.primary, false, {
     roughness: 0.5, emissive: new THREE.Color(colors.primary), emissiveIntensity: 0,
   });
-  const face = new THREE.Mesh(new THREE.BoxGeometry(0.215, 0.285, 0.022), faceMat);
+  const rimMat = m(colors.trim, false, { roughness: 0.6 });
+  const face = new THREE.Mesh(paddleFaceGeo(0.225, 0.295, 0.078, 0.026),
+    [faceMat, rimMat]);
   face.position.y = 0.21;
   face.castShadow = true;
-  const edge = new THREE.Mesh(
-    new THREE.BoxGeometry(0.235, 0.305, 0.014), m(colors.trim, false));
-  edge.position.set(0, 0.21, -0.008);
+
   const grip = new THREE.Mesh(
-    new THREE.CylinderGeometry(0.026, 0.029, 0.15, 8), m(0x24282e, false));
+    new THREE.CylinderGeometry(0.026, 0.030, 0.15, 10), m(0x24282e, false));
   grip.position.y = 0.035;
-  g.add(edge, face, grip);
+  const collarRing = new THREE.Mesh(
+    new THREE.TorusGeometry(0.031, 0.011, 6, 14), rimMat);
+  collarRing.position.y = 0.107;
+  collarRing.rotation.x = Math.PI / 2;
+
+  g.add(face, grip, collarRing);
   g.userData.face = face;
   g.userData.faceMat = faceMat;
   return g;
@@ -126,29 +185,31 @@ export function buildCharacter(def) {
 
   // The floating shell. Its centre is the pivot, so leaning tips the whole
   // figure rather than bending it.
-  const shell = new THREE.Mesh(bodyGeo(b.torso, b.bulk), m(c.primary));
-  shell.position.y = 0.50;
+  // The lathe profile is in absolute rig heights, so the shell sits at origin.
+  const shell = new THREE.Mesh(bodyGeo(b.torso, b.bulk), m(c.primary, false));
   shell.castShadow = true;
   body.add(shell);
 
   // Colour band so the character is identifiable from behind, which is the
-  // angle the play camera almost always sees.
-  const bandR = 0.228 * b.bulk;
+  // angle the play camera almost always sees. Sized to the body's own radius
+  // at that height so it hugs the surface instead of floating off it.
+  const bandY = 0.40;
+  const bandR = radiusAt(b.torso, b.bulk, bandY) * 1.02;
   const band = new THREE.Mesh(
-    new THREE.CylinderGeometry(bandR, bandR, 0.13, b.torso === 'blocky' ? 6 : 14),
-    m(c.secondary)
-  );
-  band.position.y = 0.42;
+    new THREE.CylinderGeometry(bandR, bandR * 1.03, 0.14, 20), m(c.secondary, false));
+  band.position.y = bandY;
   body.add(band);
 
+  const collarY = 0.82;
+  const collarR = radiusAt(b.torso, b.bulk, collarY) * 1.06;
   const collar = new THREE.Mesh(
-    new THREE.CylinderGeometry(bandR * 0.62, bandR * 0.72, 0.06, 12), m(c.trim));
-  collar.position.y = 0.80;
+    new THREE.CylinderGeometry(collarR * 0.86, collarR, 0.07, 18), m(c.trim, false));
+  collar.position.y = collarY;
   body.add(collar);
 
   const head = new THREE.Group();
-  head.position.y = 0.99;
-  const headMesh = new THREE.Mesh(headGeo(b.head), m(c.skin, b.head === 'square'));
+  head.position.y = 1.02;
+  const headMesh = new THREE.Mesh(headGeo(b.head), m(c.skin, false));
   headMesh.castShadow = true;
   head.add(headMesh);
   head.add(buildCrest(b.crest, c));
@@ -179,27 +240,31 @@ function paddlePose(p, side) {
   const s = side;
   if (p.swingState === SWINGSTATE.WINDUP) {
     const t = Math.min(1, p.swingT / PLAY.SWING_WINDUP);
+    // From wind-up onward the paddle is locked to the swing side: the stroke
+    // has to stay readable, and it must not follow the mouse mid-swing.
     return { x: s * (0.68 + 0.10 * t), y: 1.06 + 0.06 * t, z: -0.30 - 0.10 * t,
-      rx: -0.55, ry: -s * (1.0 + 0.3 * t), rz: s * 0.40, k: 26 };
+      rx: -0.55, ry: -s * (1.0 + 0.3 * t), rz: s * 0.40, k: 26, aim: 0 };
   }
   if (p.swingState === SWINGSTATE.ACTIVE) {
     const t = Math.min(1, p.swingT / PLAY.SWING_ACTIVE);
     const e = t * t * (3 - 2 * t); // smoothstep through contact
     return { x: s * (0.76 - e * 1.24), y: 1.10 - e * 0.34, z: -0.40 + e * 1.20,
-      rx: -0.30 + e * 0.55, ry: -s * (1.3 - e * 2.5), rz: s * (0.40 - e * 0.9), k: 44 };
+      rx: -0.30 + e * 0.55, ry: -s * (1.3 - e * 2.5), rz: s * (0.40 - e * 0.9), k: 44, aim: 0 };
   }
   if (p.swingState === SWINGSTATE.RECOVER) {
     return { x: s * -0.30, y: 0.80, z: 0.56,
-      rx: 0.22, ry: s * 1.0, rz: -s * 0.45, k: 14 };
+      rx: 0.22, ry: s * 1.0, rz: -s * 0.45, k: 14, aim: 0.3 };
   }
   if (p.charging) {
     // Wind up and back as the meter fills.
     const t = Math.min(1, p.chargeVis);
     return { x: s * (0.56 + t * 0.16), y: 0.76 + t * 0.32, z: -0.04 - t * 0.26,
-      rx: -0.18 - t * 0.38, ry: -s * (0.35 + t * 0.75), rz: s * (0.14 + t * 0.28), k: 16 };
+      rx: -0.18 - t * 0.38, ry: -s * (0.35 + t * 0.75), rz: s * (0.14 + t * 0.28),
+      k: 16, aim: 1 - t * 0.55 };
   }
   // Idle: floats out to the side, face turned toward the net.
-  return { x: s * 0.52, y: 0.74, z: 0.10, rx: 0.02, ry: -s * 0.32, rz: s * 0.12, k: 10 };
+  return { x: s * 0.52, y: 0.74, z: 0.10, rx: 0.02, ry: -s * 0.32, rz: s * 0.12,
+    k: 10, aim: 1 };
 }
 
 // Returns true on frames where a moving player should kick up dust.
@@ -233,16 +298,32 @@ export function animateCharacter(rig, p, dt, time) {
   const pose = paddlePose(p, side);
   const pad = u.paddle;
   const k = pose.k;
+
+  // The paddle drifts toward where the player is pointing. `paddleAim` is a
+  // world-space direction set by the caller; rotate it into the rig's frame so
+  // "left of the player" means left from the player's own point of view.
+  // A swing overrides this entirely (pose.aim === 0).
+  const aimW = pose.aim ?? 1;
+  let slide = 0, reach = 0, twist = 0;
+  if (aimW > 0) {
+    const ax = p.paddleAimX ?? sin;
+    const az = p.paddleAimZ ?? cos;
+    const localAimX = ax * cos - az * sin;
+    const localAimZ = ax * sin + az * cos;
+    slide = localAimX * 0.58 * aimW;
+    reach = Math.max(0, localAimZ) * 0.34 * aimW;
+    twist = -localAimX * 0.55 * aimW;
+  }
   // A slow drift keeps the idle paddle from looking pinned in place.
   const idle = p.swingState === SWINGSTATE.IDLE && !p.charging;
   const driftX = idle ? Math.sin(u.bob * 0.8) * 0.02 : 0;
   const driftY = idle ? Math.sin(u.bob * 1.15 + 1.3) * 0.03 : 0;
 
-  pad.position.x = damp(pad.position.x, pose.x + driftX, k, dt);
+  pad.position.x = damp(pad.position.x, pose.x + driftX + slide, k, dt);
   pad.position.y = damp(pad.position.y, pose.y + driftY, k, dt);
-  pad.position.z = damp(pad.position.z, pose.z, k, dt);
+  pad.position.z = damp(pad.position.z, pose.z + reach, k, dt);
   pad.rotation.x = damp(pad.rotation.x, pose.rx, k, dt);
-  pad.rotation.y = damp(pad.rotation.y, pose.ry, k, dt);
+  pad.rotation.y = damp(pad.rotation.y, pose.ry + twist, k, dt);
   pad.rotation.z = damp(pad.rotation.z, pose.rz, k, dt);
 
   // Charging swells and lights the paddle, so a wind-up is legible from the

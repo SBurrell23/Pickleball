@@ -4,8 +4,8 @@ A Mario Tennis–style pickleball game for two or four players. Vanilla JavaScri
 Three.js for rendering, PeerJS for peer-to-peer multiplayer. No build step, no
 backend, no install — every asset and every sound is generated in code at runtime.
 
-A daylight court under a procedural sky, with clouds and grass running to the
-horizon. Players are deliberately anonymous -- a floating body and a head, like
+A daylight court inside a chain-link fence, under a procedural sky, with grass
+and scrub running to the horizon. Players are deliberately anonymous -- a floating body and a head, like
 the crowd -- that lean into their movement, with a paddle attached to nothing
 that hovers beside them and does the acting. The court, the net's sag, the
 crowd, the player models, the portraits and every sound effect are built from
@@ -24,7 +24,6 @@ music track.
 | Release left click | Swing. Land the marker in the sweet spot. |
 | Right click / `Space` | Hold while swinging for a soft shot — a lob from deep, a drop at the net. |
 | `Shift` | Dash. Costs stamina. |
-| `E` | Star shot, when the meter is full and you time a full-power drive. |
 | `Esc` | Pause. |
 
 ## The two meters
@@ -45,7 +44,9 @@ you do not.
 
 Timing feeds straight back into the physics. A perfect strike goes where the
 reticle says; a mistimed one loses pace, scatters wide, and — the part that
-actually decides rallies — *floats*, sitting the ball up for a smash.
+actually decides rallies — *floats*, sitting the ball up for a smash. The
+paddle is attached to nothing: it hovers beside the player, drifts toward
+wherever you are aiming, and locks to the swing side once you commit.
 
 ## Rules
 

@@ -11,8 +11,20 @@ export const COURT = {
   RUNOFF: 3.2,          // how far past the lines a player may chase
 };
 
+// The surround. The ball is stopped by the fence rather than sailing off into
+// the grass, and the render side builds the apron and fence from the same
+// numbers so the two can never disagree.
+export const FENCE = {
+  X: COURT.HALF_W + 3.4,
+  Z: COURT.HALF_L + 3.6,
+  H: 1.15,
+  REST: 0.26,   // chain-link is dead; the ball drops rather than rebounds
+};
+
 export const BALL = {
-  R: 0.0365,
+  // Larger than a real 74mm ball on purpose: at this camera distance a
+  // true-scale ball is a speck and you cannot read its height.
+  R: 0.052,
   GRAVITY: -16.5,       // heavier than real gravity: arcade snap
   DRAG: 0.0115,         // quadratic drag coefficient
   MAGNUS: 0.055,        // spin -> lateral/vertical force

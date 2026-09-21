@@ -269,31 +269,10 @@ export class Hud {
     g.fillStyle = st > 0.34 ? '#16988a' : '#ef8b3c';
     this._roundRect(g, x, y, w * st, h, 4); g.fill();
 
-    // Special meter
-    const y2 = y + 16;
-    g.fillStyle = 'rgba(16,32,44,0.85)';
-    this._roundRect(g, x - 3, y2 - 3, w + 6, h + 6, 6); g.fill();
-    g.fillStyle = 'rgba(255,255,255,0.16)';
-    this._roundRect(g, x, y2, w, h, 4); g.fill();
-    const sp = Math.max(0, Math.min(1, p.special));
-    if (sp >= 1) {
-      const pulse = 0.65 + 0.35 * Math.sin(performance.now() / 120);
-      g.save();
-      g.shadowColor = '#e4ef3f';
-      g.shadowBlur = 14 * pulse;
-      g.fillStyle = '#e4ef3f';
-      this._roundRect(g, x, y2, w, h, 4); g.fill();
-      g.restore();
-    } else {
-      g.fillStyle = '#9b6ede';
-      this._roundRect(g, x, y2, w * sp, h, 4); g.fill();
-    }
-
     g.font = '600 10px "Trebuchet MS", system-ui, sans-serif';
     g.textAlign = 'left';
     g.fillStyle = 'rgba(255,255,255,0.85)';
     g.fillText('STAMINA', x, y - 6);
-    g.fillText(sp >= 1 ? 'STAR READY  [E]' : 'STAR', x, y2 + h + 12);
   }
 
   // The OS cursor is hidden over the canvas, so this is the only pointer the

@@ -49,6 +49,8 @@ export class Game {
     this.aim = new THREE.Vector3(0, 0.02, 0);
     this.aimWorld = new THREE.Vector3();
     this._paddlePos = new THREE.Vector3();
+    this.crowdHype = 0;
+    this.lastShotWasSmash = false;
     this._sparkColor = new THREE.Color();
     this.sparkAccum = [];
     this.lastNeedleDir = 1;
@@ -205,7 +207,6 @@ export class Game {
       quality: res.quality,
       ax: this.aim.x,
       az: this.aim.z,
-      star: res.charged && this.input.special && this.me.special >= 1,
       rewind: 0,
     };
 
@@ -358,7 +359,7 @@ export class Game {
     const rewind = this.net.rewindFor(rec, interp);
     this.sim.queueSwing(p.idx, {
       shot: msg.shot, power: msg.power, scatter: msg.scatter, quality: msg.quality,
-      ax: msg.ax, az: msg.az, star: msg.star, rewind,
+      ax: msg.ax, az: msg.az, rewind,
     });
   }
 
@@ -417,8 +418,7 @@ export class Game {
     this.pred.vx = auth[2]; this.pred.vz = auth[3];
     this.pred.facing = auth[4];
     this.pred.stamina = auth[5];
-    this.pred.special = auth[6];
-    this.pred.dashT = auth[11];
+    this.pred.dashT = auth[10];
 
     const ack = msg.ack || 0;
     while (this.inputHistory.length && this.inputHistory[0].seq <= ack) {
@@ -450,11 +450,17 @@ export class Game {
         case 'hit': {
           this.stats.hits++;
           const ch = getCharacter(this.sim.players[e.idx]?.charId);
-          this.audio.paddleHit(e.power, e.quality, e.star);
-          this.fx.hitEffect(e.pos, e.quality, e.power, e.star, ch.colors.primary);
-          if (e.idx === this.myIdx) {
-            const label = { perfect: 'PERFECT', good: 'GOOD', ok: 'OK', weak: 'MISTIMED' }[e.quality];
-            if (e.quality === 'weak') this.hud.message(label, 'warn', 0.7);
+          this.audio.paddleHit(e.power, e.quality);
+          this.fx.hitEffect(e.pos, e.quality, e.power, ch.colors.primary);
+          if (e.quality === 'weak') {
+            const pl = this.sim.players[e.idx];
+            this.fx.popText('MISTIMED', pl.x, 1.75, pl.z, '#ffcf5c', 46);
+          }
+          // A put-away gets the crowd going.
+          this.lastShotWasSmash = e.shot === 'smash';
+          if (e.shot === 'smash' && e.quality !== 'weak') {
+            this.audio.cheer(0.35 + e.power * 0.3);
+            this.crowdHype = Math.min(1, this.crowdHype + 0.55);
           }
           break;
         }
@@ -469,9 +475,14 @@ export class Game {
           this.audio.netHit();
           this.fx.netEffect(e.pos);
           break;
-        case 'whiff':
+        case 'whiff': {
           this.audio.whiff();
-          if (e.idx === this.myIdx) this.hud.message('MISSED', 'warn', 0.8);
+          const pl = this.sim.players[e.idx];
+          this.fx.popText('MISSED', pl.x, 1.75, pl.z, '#ff9330', 44);
+          break;
+        }
+        case 'fence':
+          this.audio.fenceHit(Math.hypot(this.sim.ball.v.x, this.sim.ball.v.z));
           break;
         case 'dash':
           this.audio.dash();
@@ -484,6 +495,13 @@ export class Game {
           const myTeam = this.me.team;
           const won = e.team === myTeam;
           this.audio.pointWon(won);
+          // Long rallies and put-aways earn a cheer; a serve fault does not.
+          const earned = (e.rallyShots || 0) >= 8 || this.lastShotWasSmash;
+          if (earned) {
+            this.audio.cheer(0.5 + Math.min(0.5, (e.rallyShots || 0) / 30));
+            this.crowdHype = 1;
+          }
+          this.lastShotWasSmash = false;
           this.hud.message(e.reason, 'info', 1.5);
           this.hud.setScore(e.score[0], e.score[1], e.serveTeam, mySide);
           this.stats.longest = Math.max(this.stats.longest, e.rallyShots || 0);
@@ -524,6 +542,7 @@ export class Game {
     for (let i = 0; i < this.rigs.length; i++) {
       const p = sim.players[i];
       const rig = this.rigs[i];
+      this.setPaddleAim(p, i);
       rig.position.set(p.x, 0, p.z);
       rig.rotation.y = p.facing;
       const glide = animateCharacter(rig, p, dt, time);
@@ -559,14 +578,28 @@ export class Game {
       this.fx.setLanding(0, 0, false);
     }
 
+    this.crowdHype = Math.max(0, this.crowdHype - dt * 0.45);
     if (this.crowd && this.settings.get('crowd3d')) {
-      animateCrowd(this.crowd, time, Math.min(1, this.fx.shake));
+      animateCrowd(this.crowd, time, Math.max(this.crowdHype, Math.min(0.5, this.fx.shake)));
     }
 
     this.fx.update(dt, this.view.camera, this.view.renderer.domElement.height);
     this.view.updateCamera(me.x, me.z, dt, this.fx);
 
     this.updateHud(dt);
+  }
+
+  // Where a player's paddle should drift toward. For you that is the mouse, so
+  // the paddle tracks your aim; for everyone else it is the ball, which is
+  // where they are looking anyway.
+  setPaddleAim(p, i) {
+    let tx, tz;
+    if (i === this.myIdx) { tx = this.aim.x; tz = this.aim.z; }
+    else { tx = this.sim.ball.p.x; tz = this.sim.ball.p.z; }
+    const dx = tx - p.x, dz = tz - p.z;
+    const len = Math.hypot(dx, dz);
+    if (len < 0.001) { p.paddleAimX = Math.sin(p.facing); p.paddleAimZ = Math.cos(p.facing); }
+    else { p.paddleAimX = dx / len; p.paddleAimZ = dz / len; }
   }
 
   // Sparks stream off a paddle that is winding up. The rate and colour track

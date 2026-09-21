@@ -108,7 +108,6 @@ export class Input {
   down(code) { return this.keys.has(code); }
 
   get dash() { return this.keys.has('ShiftLeft') || this.keys.has('ShiftRight'); }
-  get special() { return this.keys.has('KeyE'); }
   get soft() { return this.secondaryDown || this.keys.has('Space'); }
 
   releaseAll() {

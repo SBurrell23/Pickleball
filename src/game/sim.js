@@ -1,4 +1,4 @@
-import { COURT, BALL, PLAY, RULES, SHOT, QUALITY } from './constants.js';
+import { COURT, BALL, FENCE, PLAY, RULES, SHOT, QUALITY } from './constants.js';
 import { getCharacter } from './characters.js';
 import { netHeightAt, solveToLand, clampSpeed, speedOf } from './ballistics.js';
 import { mulberry32, randDisc } from './rng.js';
@@ -77,7 +77,6 @@ export class Sim {
         pending: null,
         charging: false,
         chargeVis: 0,
-        special: 0,
         lastContact: -99,
         speed: ch.stats.speed,
         reach: PLAY.REACH_BASE * ch.stats.reach,
@@ -370,7 +369,24 @@ export class Sim {
       }
     }
 
-    if (Math.abs(b.p.x) > 30 || Math.abs(b.p.z) > 30) b.live = false;
+    // Perimeter fence. Below the rail it is caught and dies at the foot of the
+    // fence; above it the ball clears and is gone.
+    if (b.p.y < FENCE.H) {
+      if (Math.abs(b.p.x) > FENCE.X) {
+        b.p.x = Math.sign(b.p.x) * FENCE.X;
+        b.v.x *= -FENCE.REST;
+        b.v.y *= 0.55; b.v.z *= 0.55;
+        this.emit({ type: 'fence', pos: { x: b.p.x, y: b.p.y, z: b.p.z } });
+      }
+      if (Math.abs(b.p.z) > FENCE.Z) {
+        b.p.z = Math.sign(b.p.z) * FENCE.Z;
+        b.v.z *= -FENCE.REST;
+        b.v.y *= 0.55; b.v.x *= 0.55;
+        this.emit({ type: 'fence', pos: { x: b.p.x, y: b.p.y, z: b.p.z } });
+      }
+    }
+
+    if (Math.abs(b.p.x) > 60 || Math.abs(b.p.z) > 60) b.live = false;
   }
 
   inBounds(x, z) {
@@ -552,12 +568,9 @@ export class Sim {
     const shot = pend.shot || (isServe ? SHOT.SERVE : SHOT.DRIVE);
     const env = FLIGHT[shot] || FLIGHT[SHOT.DRIVE];
 
-    let power = Math.max(0, Math.min(1.45, pend.power ?? 0.6));
-    let scatter = Math.max(0, pend.scatter ?? 0.5);
+    const power = Math.max(0, Math.min(1.45, pend.power ?? 0.6));
+    const scatter = Math.max(0, pend.scatter ?? 0.5);
     const quality = pend.quality || QUALITY.OK;
-    const star = !!pend.star && p.special >= 1;
-
-    if (star) { power = Math.min(1.45, power * 1.35); scatter = 0; p.special = 0; }
 
     let tx = pend.ax ?? 0;
     let tz = pend.az ?? oppSide * (COURT.HALF_L * 0.6);
@@ -625,17 +638,14 @@ export class Sim {
     p.lastContact = this.time;
     p.pending = null;
 
-    if (quality === QUALITY.PERFECT) p.special = Math.min(1, p.special + 0.34);
-    else if (quality === QUALITY.GOOD) p.special = Math.min(1, p.special + 0.14);
-
     if (isServe) { this.phase = PHASE.RALLY; this.phaseT = 0; }
 
     this.emit({
-      type: 'hit', idx: p.idx, shot, quality, star,
+      type: 'hit', idx: p.idx, shot, quality,
       power: Math.min(1, power), speed: speedOf(v),
       pos: { x: from.x, y: from.y, z: from.z },
       target: { x: tx, z: tz },
-      beforeBounce, special: p.special,
+      beforeBounce,
     });
   }
 
@@ -657,7 +667,7 @@ export class Sim {
         sh: this.ball.shotCount, bb: this.ball.bouncesSinceHit,
       },
       p: this.players.map((p) => ([
-        p.x, p.z, p.vx, p.vz, p.facing, p.stamina, p.special,
+        p.x, p.z, p.vx, p.vz, p.facing, p.stamina,
         p.swingState, p.swingT, p.charging ? 1 : 0, p.chargeVis, p.dashT,
       ])),
     };
@@ -677,8 +687,8 @@ export class Sim {
     for (let i = 0; i < this.players.length && i < s.p.length; i++) {
       const p = this.players[i], a = s.p[i];
       p.x = a[0]; p.z = a[1]; p.vx = a[2]; p.vz = a[3]; p.facing = a[4];
-      p.stamina = a[5]; p.special = a[6]; p.swingState = a[7]; p.swingT = a[8];
-      p.charging = !!a[9]; p.chargeVis = a[10]; p.dashT = a[11];
+      p.stamina = a[5]; p.swingState = a[6]; p.swingT = a[7];
+      p.charging = !!a[8]; p.chargeVis = a[9]; p.dashT = a[10];
     }
   }
 }

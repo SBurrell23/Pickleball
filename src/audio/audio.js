@@ -147,30 +147,38 @@ export class AudioEngine {
 
   // ---- game sounds -------------------------------------------------------
 
-  // The signature pickleball "pock": a hard plastic click over a short
-  // wideband transient. Power raises pitch and level.
-  paddleHit(power = 0.5, quality = 'good', star = false) {
+  // The pickleball "POCK": a hollow perforated plastic ball against a stiff
+  // composite face. It is almost all transient -- a hard bright click, a short
+  // hollow body resonance, and nothing sustained. Power raises pitch and level.
+  paddleHit(power = 0.5, quality = 'good') {
     if (!this.ready) return;
     const p = Math.max(0, Math.min(1, power));
-    const base = 620 + p * 520;
+
+    // The click itself: very short, very bright.
     this._noise(this.sfxBus, {
-      dur: 0.055 + p * 0.02, type: 'bandpass', freq: 1500 + p * 1800, q: 1.1,
-      gain: 0.32 + p * 0.3, send: 0.35,
+      dur: 0.022 + p * 0.008, type: 'bandpass', freq: 2600 + p * 2200, q: 0.9,
+      gain: 0.34 + p * 0.30, send: 0.28,
     });
+    // Hollow body of the ball, dropping fast.
+    const body = 540 + p * 330;
     this._tone(this.sfxBus, {
-      freq: base, endFreq: base * 0.45, dur: 0.085, type: 'triangle',
-      gain: 0.26 + p * 0.22, send: 0.3,
+      freq: body, endFreq: body * 0.62, dur: 0.055, type: 'triangle',
+      gain: 0.24 + p * 0.20, send: 0.3,
     });
+    // The ring off the paddle face.
     this._tone(this.sfxBus, {
-      freq: base * 2.02, endFreq: base * 1.1, dur: 0.05, type: 'sine',
-      gain: 0.10 + p * 0.1,
+      freq: 1450 + p * 700, endFreq: 900 + p * 400, dur: 0.038, type: 'sine',
+      gain: 0.14 + p * 0.12, send: 0.2,
     });
-    if (quality === 'perfect') this.perfectChime(star);
+    // Air moving through the holes.
+    this._noise(this.sfxBus, {
+      dur: 0.05, type: 'highpass', freq: 5200, gain: 0.05 + p * 0.06,
+    });
+
+    if (quality === 'perfect') this.perfectChime();
     if (quality === 'weak') {
-      this._noise(this.sfxBus, { dur: 0.13, type: 'lowpass', freq: 420, gain: 0.2 });
-    }
-    if (star) {
-      this._tone(this.sfxBus, { freq: 180, endFreq: 1400, dur: 0.3, type: 'sawtooth', gain: 0.22, send: 0.5 });
+      // Off-centre: duller, with the frame buzz instead of the sweet spot.
+      this._noise(this.sfxBus, { dur: 0.10, type: 'bandpass', freq: 300, q: 1.4, gain: 0.20 });
     }
   }
 
@@ -182,17 +190,38 @@ export class AudioEngine {
     if (big) this._tone(this.sfxBus, { freq: 2640, dur: 0.3, type: 'sine', gain: 0.08, delay: 0.03, send: 0.6 });
   }
 
+  // Off the court surface: the same hollow ball, but against something dead.
+  // Duller and shorter than the paddle, with no ring.
   bounce(speed = 8) {
     if (!this.ready) return;
     const v = Math.max(0, Math.min(1, speed / 22));
     this._noise(this.sfxBus, {
-      dur: 0.07, type: 'bandpass', freq: 380 + v * 420, q: 1.6,
-      gain: 0.12 + v * 0.26, send: 0.25,
+      dur: 0.028, type: 'bandpass', freq: 1500 + v * 900, q: 1.1,
+      gain: 0.10 + v * 0.20, send: 0.2,
     });
     this._tone(this.sfxBus, {
-      freq: 190 + v * 130, endFreq: 90, dur: 0.075, type: 'sine',
-      gain: 0.12 + v * 0.16,
+      freq: 400 + v * 210, endFreq: 190, dur: 0.055, type: 'triangle',
+      gain: 0.13 + v * 0.18, send: 0.18,
     });
+    this._noise(this.sfxBus, {
+      dur: 0.04, type: 'highpass', freq: 4200, gain: 0.03 + v * 0.04,
+    });
+  }
+
+  // Chain-link: a bright metallic rattle that dies immediately.
+  fenceHit(speed = 6) {
+    if (!this.ready) return;
+    const v = Math.max(0, Math.min(1, speed / 16));
+    this._noise(this.sfxBus, {
+      dur: 0.14, type: 'bandpass', freq: 3400, q: 0.7, gain: 0.10 + v * 0.16,
+      sweepTo: 1800, send: 0.2,
+    });
+    for (let i = 0; i < 3; i++) {
+      this._tone(this.sfxBus, {
+        freq: 1900 + i * 640 + Math.random() * 200, dur: 0.07, type: 'sine',
+        gain: 0.035 + v * 0.03, delay: i * 0.012,
+      });
+    }
   }
 
   netHit() {

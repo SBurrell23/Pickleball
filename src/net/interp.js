@@ -105,8 +105,7 @@ export class SnapshotBuffer {
       arr[3] = lerp(pa[3], pb[3], t);      // vz
       arr[4] = lerpAngle(pa[4], pb[4], t); // facing
       arr[5] = lerp(pa[5], pb[5], t);      // stamina
-      arr[6] = lerp(pa[6], pb[6], t);      // special
-      arr[10] = lerp(pa[10], pb[10], t);   // charge display
+      arr[9] = lerp(pa[9], pb[9], t);      // charge display
       out.p.push(arr);
     }
     return out;

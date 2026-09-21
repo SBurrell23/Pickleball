@@ -215,23 +215,21 @@ export class Effects {
 
   // ---- high-level game hooks --------------------------------------------
 
-  hitEffect(pos, quality, power, star, color = 0xffffff) {
+  hitEffect(pos, quality, power, color = 0xffffff) {
     const c = new THREE.Color(
-      quality === 'perfect' ? 0xffe066 : quality === 'weak' ? 0x8899aa : color
+      quality === 'perfect' ? 0xe4ef3f : quality === 'weak' ? 0x8899aa : color
     );
-    this.burst(pos.x, pos.y, pos.z, star ? 46 : 12 + power * 22, {
-      color: c, spread: 2.0 + power * 3.4, life: 0.34, size: star ? 1.5 : 1,
-      gravity: -7, up: 0.8,
+    this.burst(pos.x, pos.y, pos.z, 12 + power * 22, {
+      color: c, spread: 2.0 + power * 3.4, life: 0.34, gravity: -7, up: 0.8,
     });
     this.ring(pos.x, pos.y, pos.z, {
-      color: star ? 0xffd24a : c.getHex(), flat: false,
-      from: 0.1, to: star ? 2.6 : 0.85 + power * 0.9, life: 0.3, opacity: 0.85,
+      color: c.getHex(), flat: false,
+      from: 0.1, to: 0.85 + power * 0.9, life: 0.3, opacity: 0.85,
     });
-    if (quality === 'perfect' || star) {
-      this.popText(star ? 'STAR!' : 'PERFECT', pos.x, pos.y + 0.75, pos.z,
-        star ? '#ffd24a' : '#ffe066', star ? 74 : 58);
+    if (quality === 'perfect') {
+      this.popText('PERFECT', pos.x, pos.y + 0.75, pos.z, '#e4ef3f', 58);
     }
-    this.addShake(star ? 1.0 : 0.18 + power * 0.42);
+    this.addShake(0.18 + power * 0.42);
   }
 
   bounceEffect(pos, speed, inBounds) {

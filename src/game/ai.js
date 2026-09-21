@@ -149,7 +149,6 @@ function fireSwing(sim, p, st, tune) {
   sim.queueSwing(p.idx, {
     shot, power: res.power, scatter: res.scatter, quality: res.quality,
     ax: st.target.x, az: st.target.z, rewind: 0,
-    star: res.charged && p.special >= 1 && d > 0.55,
   });
 }
 

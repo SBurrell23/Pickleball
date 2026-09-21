@@ -1,13 +1,15 @@
 import * as THREE from '../../vendor/three.module.js';
-import { COURT, BALL } from '../game/constants.js';
+import { COURT, BALL, FENCE } from '../game/constants.js';
 import { netHeightAt } from '../game/ballistics.js';
 import { mulberry32 } from '../game/rng.js';
 
 // Everything visible in the game is built here out of primitives and
 // canvas-drawn textures. No external art assets.
 
-const APRON_X = COURT.HALF_W + 3.4;
-const APRON_Z = COURT.HALF_L + 3.6;
+// The apron is the built surface inside the fence; both come from the same
+// constants the ball collides against.
+const APRON_X = FENCE.X;
+const APRON_Z = FENCE.Z;
 
 function mat(color, opts = {}) {
   return new THREE.MeshStandardMaterial({
@@ -65,21 +67,38 @@ function netTexture() {
 // A pickleball is a perforated plastic sphere -- the holes read clearly even
 // at a distance, and they sell the spin.
 function ballTexture() {
-  return canvasTex(256, 128, (g, w, h) => {
-    g.fillStyle = '#f2ea38';
+  return canvasTex(512, 256, (g, w, h) => {
+    // Indoor pickleballs are this slightly acid yellow-green.
+    g.fillStyle = '#e8ee3a';
     g.fillRect(0, 0, w, h);
-    g.fillStyle = 'rgba(120,112,20,0.85)';
-    const rows = 6;
+
+    // Holes. A real ball has 26 of them in offset rows; the exact count matters
+    // less than them reading as holes rather than dots, so each gets a dark
+    // interior with a lit lower rim.
+    const rows = 7;
     for (let r = 0; r < rows; r++) {
-      const y = ((r + 0.5) / rows) * h;
-      const count = 8;
+      const v = (r + 0.5) / rows;
+      const y = v * h;
+      const band = Math.sin(v * Math.PI);        // fewer holes near the poles
+      const count = Math.max(3, Math.round(9 * band));
       const off = r % 2 ? 0.5 : 0;
       for (let i = 0; i < count; i++) {
         const x = ((i + off) / count) * w;
-        const rad = 5.5 * Math.sin((y / h) * Math.PI) + 1.5;
+        const rad = (5 + 9 * band);
+        g.fillStyle = 'rgba(92, 96, 16, 0.92)';
         g.beginPath(); g.arc(x, y, rad, 0, Math.PI * 2); g.fill();
+        g.fillStyle = 'rgba(40, 42, 8, 0.8)';
+        g.beginPath(); g.arc(x, y + rad * 0.12, rad * 0.72, 0, Math.PI * 2); g.fill();
+        g.strokeStyle = 'rgba(255, 255, 190, 0.5)';
+        g.lineWidth = 1.6;
+        g.beginPath(); g.arc(x, y, rad, 0.5, 2.2); g.stroke();
       }
     }
+
+    // Moulding seam around the equator.
+    g.strokeStyle = 'rgba(150, 156, 40, 0.5)';
+    g.lineWidth = 2.5;
+    g.beginPath(); g.moveTo(0, h / 2); g.lineTo(w, h / 2); g.stroke();
   });
 }
 
@@ -214,32 +233,7 @@ function buildNet(quality) {
 
 function buildSurrounds(quality) {
   const g = new THREE.Group();
-
-  // Perimeter fence, drawn as a light wireframe so it frames the court
-  // without blocking the view.
-  const fenceMat = new THREE.LineBasicMaterial({ color: 0x2b4a41, transparent: true, opacity: 0.42 });
-  const fh = 3.0;
-  const pts = [];
-  const corners = [
-    [-APRON_X, -APRON_Z], [APRON_X, -APRON_Z], [APRON_X, APRON_Z], [-APRON_X, APRON_Z],
-  ];
-  for (let i = 0; i < 4; i++) {
-    const [x1, z1] = corners[i];
-    const [x2, z2] = corners[(i + 1) % 4];
-    const steps = 20;
-    for (let s = 0; s <= steps; s++) {
-      const x = x1 + (x2 - x1) * (s / steps);
-      const z = z1 + (z2 - z1) * (s / steps);
-      pts.push(x, 0, z, x, fh, z);
-    }
-    for (let r = 1; r <= 3; r++) {
-      const y = (r / 3) * fh;
-      pts.push(x1, y, z1, x2, y, z2);
-    }
-  }
-  const fg = new THREE.BufferGeometry();
-  fg.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
-  g.add(new THREE.LineSegments(fg, fenceMat));
+  g.add(buildFence(quality));
 
   // Bleachers down both sides.
   const standMat = mat(0x404a55, { roughness: 0.9 });
@@ -248,7 +242,7 @@ function buildSurrounds(quality) {
       const bench = new THREE.Mesh(
         new THREE.BoxGeometry(0.9, 0.42, COURT.HALF_L * 1.7), standMat
       );
-      bench.position.set(s * (APRON_X + 0.6 + r * 0.9), 0.21 + r * 0.42, 0);
+      bench.position.set(s * (APRON_X + 1.5 + r * 0.9), 0.21 + r * 0.42, 0);
       bench.receiveShadow = quality === 'high';
       g.add(bench);
     }
@@ -256,6 +250,93 @@ function buildSurrounds(quality) {
 
   if (quality !== 'off') g.add(buildCrowd());
   g.add(buildLights(quality));
+  return g;
+}
+
+// Chain-link mesh, drawn once and tiled along the rails.
+function chainLinkTexture() {
+  return canvasTex(64, 64, (g, w, h) => {
+    g.clearRect(0, 0, w, h);
+    g.strokeStyle = 'rgba(206, 218, 224, 0.95)';
+    g.lineWidth = 3;
+    g.lineCap = 'square';
+    for (let i = -1; i <= 2; i++) {
+      g.beginPath();
+      g.moveTo(i * w, 0); g.lineTo(i * w + w, h); g.stroke();
+      g.beginPath();
+      g.moveTo(i * w, h); g.lineTo(i * w + w, 0); g.stroke();
+    }
+  }, [1, 1]);
+}
+
+// A waist-high perimeter fence rather than a full cage: it reads as a real
+// court surround, and it is low enough that the ball can clear it.
+function buildFence(quality) {
+  const g = new THREE.Group();
+  const H = FENCE.H;
+  const postMat = mat(0x39474e, { metalness: 0.4, roughness: 0.5 });
+  const railMat = mat(0x46565e, { metalness: 0.4, roughness: 0.5 });
+
+  const meshTex = chainLinkTexture();
+  const meshMat = new THREE.MeshStandardMaterial({
+    color: 0xd8e2e8, map: meshTex, transparent: true, alphaTest: 0.35,
+    side: THREE.DoubleSide, roughness: 0.85, metalness: 0.15,
+  });
+
+  // Four runs, each a tiled mesh panel with a top rail and posts.
+  const runs = [
+    { x: 0, z: -FENCE.Z, len: FENCE.X * 2, rotY: 0 },
+    { x: 0, z: FENCE.Z, len: FENCE.X * 2, rotY: 0 },
+    { x: -FENCE.X, z: 0, len: FENCE.Z * 2, rotY: Math.PI / 2 },
+    { x: FENCE.X, z: 0, len: FENCE.Z * 2, rotY: Math.PI / 2 },
+  ];
+
+  for (const run of runs) {
+    const tex = meshTex.clone();
+    tex.needsUpdate = true;
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+    tex.repeat.set(run.len / 0.34, H / 0.34);
+    const panelMat = meshMat.clone();
+    panelMat.map = tex;
+
+    const panel = new THREE.Mesh(new THREE.PlaneGeometry(run.len, H), panelMat);
+    panel.position.set(run.x, H / 2, run.z);
+    panel.rotation.y = run.rotY;
+    g.add(panel);
+  }
+
+  // Top rails, built per axis so each gets the right orientation.
+  const railGeoX = new THREE.CylinderGeometry(0.045, 0.045, FENCE.X * 2, 8);
+  const railGeoZ = new THREE.CylinderGeometry(0.045, 0.045, FENCE.Z * 2, 8);
+  for (const sz of [-1, 1]) {
+    const r = new THREE.Mesh(railGeoX, railMat);
+    r.rotation.z = Math.PI / 2;
+    r.position.set(0, H, sz * FENCE.Z);
+    g.add(r);
+  }
+  for (const sx of [-1, 1]) {
+    const r = new THREE.Mesh(railGeoZ, railMat);
+    r.rotation.x = Math.PI / 2;
+    r.position.set(sx * FENCE.X, H, 0);
+    g.add(r);
+  }
+
+  // Posts every few metres.
+  const postGeo = new THREE.CylinderGeometry(0.052, 0.058, H + 0.06, 8);
+  const addPost = (x, z) => {
+    const p = new THREE.Mesh(postGeo, postMat);
+    p.position.set(x, (H + 0.06) / 2, z);
+    p.castShadow = quality === 'high';
+    g.add(p);
+  };
+  const stepX = (FENCE.X * 2) / Math.round((FENCE.X * 2) / 2.6);
+  for (let x = -FENCE.X; x <= FENCE.X + 0.01; x += stepX) {
+    addPost(x, -FENCE.Z); addPost(x, FENCE.Z);
+  }
+  const stepZ = (FENCE.Z * 2) / Math.round((FENCE.Z * 2) / 2.6);
+  for (let z = -FENCE.Z + stepZ; z < FENCE.Z - 0.01; z += stepZ) {
+    addPost(-FENCE.X, z); addPost(FENCE.X, z);
+  }
   return g;
 }
 
@@ -347,10 +428,10 @@ function buildLights(quality) {
 export function buildBall() {
   const g = new THREE.Group();
   const ball = new THREE.Mesh(
-    new THREE.SphereGeometry(BALL.R, 18, 14),
+    new THREE.SphereGeometry(BALL.R, 22, 16),
     new THREE.MeshStandardMaterial({
-      color: 0xffffff, map: ballTexture(), roughness: 0.55, metalness: 0.02,
-      emissive: 0x2a2600, emissiveIntensity: 0.25,
+      color: 0xffffff, map: ballTexture(), roughness: 0.42, metalness: 0.0,
+      emissive: 0x3a3a08, emissiveIntensity: 0.18,
     })
   );
   ball.castShadow = true;
@@ -416,30 +497,80 @@ void main() {
 }`;
 
 function grassTexture() {
-  return canvasTex(256, 256, (g, w, h) => {
-    g.fillStyle = '#5bb04f';
+  return canvasTex(512, 512, (g, w, h) => {
+    g.fillStyle = '#4e9f45';
     g.fillRect(0, 0, w, h);
-    // Broad mottling first, so the field is not one flat green.
-    for (let i = 0; i < 40; i++) {
-      const r = 18 + Math.random() * 46;
-      g.globalAlpha = 0.05 + Math.random() * 0.07;
-      g.fillStyle = Math.random() < 0.5 ? '#77c96a' : '#428f3a';
+    // Broad mottling: patches of lighter and darker turf.
+    for (let i = 0; i < 70; i++) {
+      const r = 30 + Math.random() * 90;
+      g.globalAlpha = 0.05 + Math.random() * 0.08;
+      g.fillStyle = Math.random() < 0.5 ? '#74c45f' : '#2f7a2f';
       g.beginPath();
       g.arc(Math.random() * w, Math.random() * h, r, 0, Math.PI * 2);
       g.fill();
     }
-    // Then blade-scale speckle for close-up detail.
-    for (let i = 0; i < 4200; i++) {
-      g.globalAlpha = 0.10 + Math.random() * 0.26;
-      g.fillStyle = Math.random() < 0.5 ? '#77cc66' : '#2f6f2c';
+    // Individual blades, drawn as short tapered strokes at varied angles. This
+    // is what stops the field reading as flat paint up close.
+    g.lineCap = 'round';
+    for (let i = 0; i < 9000; i++) {
       const x = Math.random() * w, y = Math.random() * h;
-      g.fillRect(x, y, 1, 1 + Math.random() * 2.5);
+      const len = 3 + Math.random() * 7;
+      const lean = (Math.random() - 0.5) * 3.2;
+      g.globalAlpha = 0.22 + Math.random() * 0.5;
+      const t = Math.random();
+      g.strokeStyle = t < 0.34 ? '#83d46c' : t < 0.68 ? '#3f8c37' : '#5cb04e';
+      g.lineWidth = 0.8 + Math.random() * 1.2;
+      g.beginPath();
+      g.moveTo(x, y);
+      g.lineTo(x + lean, y - len);
+      g.stroke();
     }
     g.globalAlpha = 1;
-  }, [180, 180]);
+  }, [260, 260]);
 }
 
-// Cartoon cloud: a handful of overlapping squashed spheres.
+// Low-poly shrubs scattered outside the fence. One InstancedMesh for the whole
+// ring keeps this to a single draw call no matter how many clumps there are.
+function buildBrush(rand, count) {
+  const group = new THREE.Group();
+  const geo = new THREE.IcosahedronGeometry(1, 0);
+  const mesh = new THREE.InstancedMesh(
+    geo,
+    new THREE.MeshStandardMaterial({ roughness: 1, metalness: 0, flatShading: true }),
+    count
+  );
+  const m = new THREE.Matrix4();
+  const q = new THREE.Quaternion();
+  const e = new THREE.Euler();
+  const pos = new THREE.Vector3();
+  const scl = new THREE.Vector3();
+  const greens = [0x3f8f3a, 0x4fa348, 0x336f30, 0x5cb054, 0x2d6b2f];
+
+  for (let i = 0; i < count; i++) {
+    // Ring around the court, thinning with distance so the near ground stays
+    // clear and the horizon stays busy.
+    const ang = rand() * Math.PI * 2;
+    // Start well clear of the fence: anything close reads as a boulder from the
+    // play camera and crowds the top of the frame.
+    const dist = FENCE.Z + 11 + Math.pow(rand(), 0.55) * 95;
+    pos.set(Math.cos(ang) * dist * 1.05, 0, Math.sin(ang) * dist);
+    const s = 0.30 + rand() * 0.62;
+    scl.set(s * (0.9 + rand() * 0.6), s * (0.6 + rand() * 0.45), s * (0.9 + rand() * 0.6));
+    pos.y = scl.y * 0.5 - 0.22;
+    e.set(rand() * 0.4, rand() * 6.283, rand() * 0.4);
+    q.setFromEuler(e);
+    m.compose(pos, q, scl);
+    mesh.setMatrixAt(i, m);
+    mesh.setColorAt(i, new THREE.Color(greens[(rand() * greens.length) | 0]));
+  }
+  mesh.instanceColor.needsUpdate = true;
+  mesh.castShadow = false;
+  mesh.receiveShadow = false;
+  group.add(mesh);
+  return group;
+}
+
+// Cartoon cloud:// Cartoon cloud: a handful of overlapping squashed spheres.
 function buildCloud(rand) {
   const g = new THREE.Group();
   const m = new THREE.MeshStandardMaterial({
@@ -496,6 +627,7 @@ export function buildSky(sunDirection) {
   root.add(ground);
 
   const rand = mulberry32(90210);
+  root.add(buildBrush(rand, 340));
   for (let i = 0; i < 11; i++) {
     const cloud = buildCloud(rand);
     const ang = rand() * Math.PI * 2;
