@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Pickleball</title>
+<meta name="description" content="A Mario Tennis style pickleball game for two or four players. Peer-to-peer, no install.">
+<meta name="theme-color" content="#0e1a24">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><circle cx='16' cy='16' r='13' fill='%23f2ea38'/><g fill='%23786f14'><circle cx='11' cy='11' r='2.2'/><circle cx='21' cy='11' r='2.2'/><circle cx='16' cy='16' r='2.2'/><circle cx='11' cy='21' r='2.2'/><circle cx='21' cy='21' r='2.2'/></g></svg>">
+<link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div id="stage"></div>
+  <div id="overlay"></div>
+
+  <noscript>
+    <div class="fatal"><h1>JavaScript required</h1>
+    <p>This game is built entirely in JavaScript — there is nothing to show without it.</p></div>
+  </noscript>
+
+  <script src="./vendor/peerjs.min.js"></script>
+  <script type="module" src="./src/main.js"></script>
+</body>
+</html>
