@@ -205,6 +205,7 @@ class App {
   teardownNet() {
     if (this.net) { this.net.close(); this.net = null; }
     this.lobby = null;
+    this.matchStarted = false;
   }
 
   // ---- local -------------------------------------------------------------
@@ -249,7 +250,7 @@ class App {
 
   makeNet() {
     return new Net({
-      onPeerJoined: () => this.refreshLobby(),
+      onPeerJoined: (rec) => this.onPeerJoined(rec),
       onPeerLeft: (rec, why) => this.onPeerLeft(rec, why),
       onLobbyChange: () => this.refreshLobby(),
       onLobby: (msg) => this.onLobbyMessage(msg),
@@ -266,6 +267,29 @@ class App {
       onError: (msg) => this.menus.setStatus(msg),
       onStatus: () => {},
     });
+  }
+
+  // A room only has room for so many. Without this a third person joining a
+  // singles room connects, sits in the lobby, and is silently never dealt in.
+  roomCapacity() { return (this.hostConfig?.mode === 'doubles') ? 4 : 2; }
+
+  onPeerJoined(rec) {
+    const seated = this.net.peerList().filter((r) => r.profile && r !== rec).length;
+    if (this.matchStarted) {
+      this.net.sendCtrl({ t: 'reject', why: 'That match has already started.' }, rec.id);
+      setTimeout(() => this.net && this.net._dropPeer(rec.id, 'match in progress'), 400);
+      return;
+    }
+    if (seated + 2 > this.roomCapacity()) {
+      this.net.sendCtrl({
+        t: 'reject',
+        why: `That room is full (${this.roomCapacity()} players).`,
+      }, rec.id);
+      // Give the message a moment to flush before the channel closes.
+      setTimeout(() => this.net && this.net._dropPeer(rec.id, 'room full'), 400);
+      return;
+    }
+    this.refreshLobby();
   }
 
   onPeerLeft(rec, why) {
@@ -327,6 +351,7 @@ class App {
 
   hostStartMatch() {
     if (!this.net || !this.net.isHost) return;
+    this.matchStarted = true;
     const config = { ...this.hostConfig, seed: (Math.random() * 1e9) | 0 };
     const peers = this.net.peerList().filter((r) => r.profile);
     const humans = [

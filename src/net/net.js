@@ -92,6 +92,7 @@ export class Net {
     this.destroyed = false;
     this.inputSeq = 0;
     this.status = 'idle';
+    this.rejected = false;
   }
 
   now() { return performance.now() / 1000 - this.clockStart; }
@@ -229,7 +230,12 @@ export class Net {
           resolve();
         });
         ctrl.on('data', (m) => this._onClientMessage(m));
-        ctrl.on('close', () => this.h.onDisconnected?.('Host closed the match'));
+        ctrl.on('close', () => {
+          // A rejected peer already got the real reason; the channel closing
+          // straight afterwards is expected, not a second failure.
+          if (this.rejected) return;
+          this.h.onDisconnected?.('Host closed the match');
+        });
         ctrl.on('error', () => fail('Could not reach that room'));
         fast.on('data', (m) => this._onClientMessage(m));
         fast.on('error', () => { /* unreliable channel; ignore transient errors */ });
@@ -363,6 +369,7 @@ export class Net {
         this.h.onEvents?.(msg.e || []);
         break;
       case 'reject':
+        this.rejected = true;
         this.h.onDisconnected?.(msg.why || 'Rejected by host');
         break;
       case 'chat':
