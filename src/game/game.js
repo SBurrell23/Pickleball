@@ -588,16 +588,25 @@ export class Game {
     this.fx.updateTrail(b.p, dt, this.settings.get('trails') && b.live, trailColor);
 
     // Landing marker: your aim while charging, otherwise where the ball lands.
+    const tracking = b.live && sim.phase === PHASE.RALLY;
+    const land = tracking ? predictLanding(b, 3) : null;
+    const urgency = land && Math.sign(land.z) === me.side
+      ? Math.max(0, 1 - land.t / 1.1) * 0.8
+      : 0;
+
     if (this.swing.active) {
       this.fx.setLanding(this.aim.x, this.aim.z, true, 0.55);
-    } else if (b.live && sim.phase === PHASE.RALLY) {
-      const land = predictLanding(b, 3);
-      const incoming = Math.sign(land.z) === me.side;
-      this.fx.setLanding(land.x, land.z, !land.hitNet,
-        incoming ? Math.max(0, 1 - land.t / 1.1) * 0.8 : 0, b.p.y);
+    } else if (land) {
+      this.fx.setLanding(land.x, land.z, !land.hitNet, urgency);
     } else {
       this.fx.setLanding(0, 0, false);
     }
+
+    // The height ring stays on the ball throughout, swing or no swing: it is
+    // how you read an incoming ball, and the moment you are winding up is
+    // exactly when you need it most.
+    if (land) this.fx.setFallRing(land.x, land.z, !land.hitNet, urgency, b.p.y);
+    else this.fx.setFallRing(0, 0, false);
 
     // Excitement decays, and what the crowd actually shows chases it rather
     // than snapping -- they should get to their feet, not pop.
@@ -699,9 +708,13 @@ export class Game {
   hintFor() {
     const sim = this.sim;
     if (sim.phase === PHASE.SERVE) {
-      return sim.serverIdx === this.myIdx
-        ? 'Hold <b>Left Click</b> to serve — release in the sweet spot'
-        : 'Let the serve bounce before you return it';
+      if (sim.serverIdx !== this.myIdx) return 'Let the serve bounce before you return it';
+      // Warn while they can still walk back, rather than only calling the
+      // fault after they have already hit it.
+      if (sim.serveFootFault(this.me)) {
+        return 'Foot fault — get back behind your own half to serve';
+      }
+      return 'Hold <b>Left Click</b> to serve — release in the sweet spot';
     }
     if (sim.phase === PHASE.RALLY && sim.ball.shotCount < 3 && sim.ball.bouncesSinceHit === 0) {
       return 'Two-bounce rule — let it bounce';

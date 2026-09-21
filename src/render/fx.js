@@ -45,11 +45,12 @@ const MAX_RINGS = 14;
 const MAX_TEXTS = 8;
 
 // Falling-height ring around the landing marker. Drawn at unit radius and
-// scaled, so the stroke thickens with the ring -- a distant ball reads as a
-// soft wide halo and a ball about to land as a tight bright collar.
-const MARKER_RING_INNER = 0.90;  // fraction of the outer radius
+// scaled. It stays close to the size of the marker it collapses onto: this is
+// a read on the ball, not a spotlight on the court, so even with the ball at
+// the top of its arc it is only a little wider than the landing spot itself.
+const MARKER_RING_INNER = 0.94;  // fraction of the outer radius -- a thin hoop
 const MARKER_MIN_R = 0.30;       // matches the landing marker's own radius
-const MARKER_MAX_R = 3.10;       // where a ball well above the camera tops out
+const MARKER_MAX_R = 0.78;       // barely wider than the marker, even up high
 const MARKER_CEIL_Y = 7.0;       // height at which the ring stops growing
 
 export class Effects {
@@ -291,20 +292,23 @@ export class Effects {
 
   // `height` is how high the ball is right now, or null when the marker is
   // showing an aim point rather than a falling ball.
-  setLanding(x, z, visible, urgency = 0, height = null) {
+  setLanding(x, z, visible, urgency = 0) {
     if (!visible || !this.settings.get('showLanding')) {
       this.marker.material.opacity = 0;
-      this.markerFall.visible = false;
       return;
     }
     this.marker.position.set(x, 0.026, z);
     const pulse = 1 + Math.sin(this.time * 14) * 0.12 * (0.4 + urgency);
     this.marker.scale.setScalar(pulse);
     this.marker.material.opacity = 0.42 + urgency * 0.4;
-    const hue = 0.14 - urgency * 0.13;
-    this.marker.material.color.setHSL(hue, 0.95, 0.58);
+    this.marker.material.color.setHSL(0.14 - urgency * 0.13, 0.95, 0.58);
+  }
 
-    if (height === null) {
+  // The height ring is driven separately from the marker above, because it
+  // tracks the ball whatever the player is doing -- including mid-swing, when
+  // the marker itself switches over to showing where you are aiming.
+  setFallRing(x, z, visible, urgency = 0, height = 0) {
+    if (!visible || !this.settings.get('showLanding')) {
       this.markerFall.visible = false;
       return;
     }
@@ -312,17 +316,12 @@ export class Effects {
     // shrinks at whatever speed the ball is actually dropping: a smash slams
     // it shut, a lob leaves it hanging almost still at the apex.
     const k = Math.max(0, Math.min(1, height / MARKER_CEIL_Y));
-    const radius = MARKER_MIN_R + (MARKER_MAX_R - MARKER_MIN_R) * k;
     this.markerFall.visible = true;
     this.markerFall.position.set(x, 0.024, z);
-    this.markerFall.scale.setScalar(radius);
-    // Fades up as it closes, so the moment of contact is the brightest --
-    // otherwise a huge faint ring is the loudest thing on the court. The floor
-    // has to stay readable though: urgency is near zero exactly while a lob is
-    // at its peak, which is the one moment the wide ring is the only thing
-    // telling you where the ball went, so it only trims the edges here.
-    this.markerFall.material.opacity = (0.22 + (1 - k) * 0.45) * (0.85 + urgency * 0.15);
-    this.markerFall.material.color.setHSL(hue, 0.95, 0.62);
+    this.markerFall.scale.setScalar(MARKER_MIN_R + (MARKER_MAX_R - MARKER_MIN_R) * k);
+    // Fades up as it closes, so the moment of contact is the brightest.
+    this.markerFall.material.opacity = (0.30 + (1 - k) * 0.45) * (0.85 + urgency * 0.15);
+    this.markerFall.material.color.setHSL(0.14 - urgency * 0.13, 0.95, 0.62);
   }
 
   // ---- per-frame ---------------------------------------------------------

@@ -455,6 +455,24 @@ export class Sim {
     if (!good) this.awardPoint(1 - hitterTeam, 'Out');
   }
 
+  // Which half of the baseline the server has to stand behind. Serving is
+  // cross-court, so the side they start on is the side they must serve from --
+  // wandering across the centre line before hitting it is a foot fault, the
+  // same as it is on a real court.
+  serverBoxSign() {
+    return -this.serveTargetXSign;
+  }
+
+  // True when the server has wandered out of the half they must serve from.
+  // Only the sideways bounds are judged: how far back they stand is their own
+  // business, as it is in the version of the rule most people play by.
+  serveFootFault(p) {
+    const want = this.serverBoxSign();
+    const t = COURT.LINE_W * 0.5;
+    if (Math.sign(p.x) !== want && Math.abs(p.x) > t) return true;
+    return Math.abs(p.x) > COURT.HALF_W;
+  }
+
   // Serving has three distinct ways to fail and they are worth telling apart:
   // a player who cannot see which one they committed will conclude the rule
   // is not enforced at all.
@@ -589,6 +607,15 @@ export class Sim {
 
   launch(p, pend, contact, isServe, beforeBounce = false) {
     const b = this.ball;
+    // Judged at contact rather than at set-up, because the whole point is that
+    // you can walk out of your box between the point starting and hitting it.
+    if (isServe && this.serveFootFault(p)) {
+      p.pending = null;
+      p.swingState = SWINGSTATE.RECOVER;
+      p.swingT = 0;
+      this.awardPoint(1 - p.team, 'Foot fault — serve from your own half');
+      return;
+    }
     const oppSide = -p.side;
     const kitchenBounce = b.bounceInKitchen;
     const shot = pend.shot || (isServe ? SHOT.SERVE : SHOT.DRIVE);
