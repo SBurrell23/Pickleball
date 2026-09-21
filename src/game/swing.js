@@ -2,6 +2,19 @@ import {
   SWING, SWING_MODE, QUALITY, QUALITY_POWER, QUALITY_SCATTER, SHOT,
 } from './constants.js';
 
+// How much the sweet band widens for whoever is standing under a lob, from
+// how high the ball got since it was last struck. A ball that never left
+// waist height is worth nothing; a genuine moon ball is worth the lot. The
+// caller feeds in the apex so this stays the single definition of the curve.
+export function lobBonus(apexY) {
+  const { LOB_APEX_LO: lo, LOB_APEX_HI: hi, LOB_SWEET } = SWING;
+  // Linear between the two heights: the floor already excludes half-hearted
+  // lifts, so easing on top of it left ordinary lobs paying out almost
+  // nothing, which is not what the mechanic is for.
+  const k = Math.max(0, Math.min(1, (apexY - lo) / (hi - lo)));
+  return 1 + (LOB_SWEET - 1) * k;
+}
+
 // Two swings, chosen by which mouse button you hold. Both are filling power
 // bars with a sweet band near the top; they differ in how long the bar is and
 // what the shot can do.
@@ -31,6 +44,7 @@ export function createSwingState() {
     held: 0,        // seconds the button has been down
     sweetCenter: (SWING.DRIVE_SWEET_LO + SWING.DRIVE_SWEET_HI) * 0.5,
     zoneScale: 1,
+    lobBonus: 1,
     overcooked: false,
     lastResult: null,
   };
@@ -42,6 +56,9 @@ export function beginSwing(sw, mode, tuning, rand = Math.random, zoneScale = 1) 
   // Shrinks the sweet and good bands without touching the wider "ok" shoulder,
   // so a harder swing costs you quality rather than becoming unplayable.
   sw.zoneScale = zoneScale;
+  // Ratcheted upward by the caller while the ball climbs, never downward, so
+  // the band you were aiming at cannot shrink out from under your thumb.
+  sw.lobBonus = 1;
   sw.t = 0;
   sw.held = 0;
   sw.overcooked = false;
@@ -67,15 +84,19 @@ export function sweetZone(sw, tuning, assist = 1) {
   // so it widens with the dink stat even though it is mechanically a bar.
   const stat = sw.mode === MODE.QUICK ? tuning.dinkSweet : tuning.driveSweet;
   const scale = stat * assist;
-  const z = sw.zoneScale ?? 1;
+  const z = (sw.zoneScale ?? 1) * (sw.lobBonus ?? 1);
   const base = ((SWING.DRIVE_SWEET_HI - SWING.DRIVE_SWEET_LO) * 0.5) * scale;
+  const half = base * z;
   return {
     center: sw.sweetCenter,
-    half: base * z,
+    half,
     perfect: (SWING.DRIVE_PERFECT_W * 0.5) * scale * z,
     // Derived from the unshrunk band: tightening a swing should cost you the
-    // top grades, not make the shot impossible to land at all.
-    okHalf: base * 1.85,
+    // top grades, not make the shot impossible to land at all. A lob bonus can
+    // widen the sweet band past the shoulder, so keep a margin outside it --
+    // otherwise a widened swing drops straight from good to weak with no ok
+    // grade in between, which is a harsher cliff than the narrow version.
+    okHalf: Math.max(base * 1.85, half * 1.22),
   };
 }
 

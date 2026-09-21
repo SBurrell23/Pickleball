@@ -44,6 +44,14 @@ const TRAIL_SEGMENTS = 26;
 const MAX_RINGS = 14;
 const MAX_TEXTS = 8;
 
+// Falling-height ring around the landing marker. Drawn at unit radius and
+// scaled, so the stroke thickens with the ring -- a distant ball reads as a
+// soft wide halo and a ball about to land as a tight bright collar.
+const MARKER_RING_INNER = 0.90;  // fraction of the outer radius
+const MARKER_MIN_R = 0.30;       // matches the landing marker's own radius
+const MARKER_MAX_R = 3.10;       // where a ball well above the camera tops out
+const MARKER_CEIL_Y = 7.0;       // height at which the ring stops growing
+
 export class Effects {
   constructor(scene, settings) {
     this.scene = scene;
@@ -122,6 +130,24 @@ export class Effects {
     this.marker.rotation.x = -Math.PI / 2;
     this.marker.renderOrder = 3;
     scene.add(this.marker);
+
+    // A second ring around the first, sized by how high the ball currently
+    // is, so it closes onto the marker as the ball falls. A high ball is a
+    // wide ring and a ball on the way down is a ring visibly shrinking --
+    // which is the only altitude cue you get once the ball leaves the top of
+    // the screen, and its closing rate reads directly as descent speed.
+    // Built at unit radius and scaled, so there is one buffer for every size.
+    this.markerFall = new THREE.Mesh(
+      new THREE.RingGeometry(MARKER_RING_INNER, 1, 48),
+      new THREE.MeshBasicMaterial({
+        color: 0xffe066, transparent: true, opacity: 0.0,
+        depthWrite: false, side: THREE.DoubleSide,
+      })
+    );
+    this.markerFall.rotation.x = -Math.PI / 2;
+    this.markerFall.renderOrder = 3;
+    this.markerFall.visible = false;
+    scene.add(this.markerFall);
 
     // ---- floating callouts ----
     this.texts = [];
@@ -263,23 +289,56 @@ export class Effects {
     this.shake = Math.min(1.6, this.shake + amount * s);
   }
 
-  setLanding(x, z, visible, urgency = 0) {
+  // `height` is how high the ball is right now, or null when the marker is
+  // showing an aim point rather than a falling ball.
+  setLanding(x, z, visible, urgency = 0, height = null) {
     if (!visible || !this.settings.get('showLanding')) {
       this.marker.material.opacity = 0;
+      this.markerFall.visible = false;
       return;
     }
     this.marker.position.set(x, 0.026, z);
     const pulse = 1 + Math.sin(this.time * 14) * 0.12 * (0.4 + urgency);
     this.marker.scale.setScalar(pulse);
     this.marker.material.opacity = 0.42 + urgency * 0.4;
-    this.marker.material.color.setHSL(0.14 - urgency * 0.13, 0.95, 0.58);
+    const hue = 0.14 - urgency * 0.13;
+    this.marker.material.color.setHSL(hue, 0.95, 0.58);
+
+    if (height === null) {
+      this.markerFall.visible = false;
+      return;
+    }
+    // Radius tracks height directly rather than time-to-land, so the ring
+    // shrinks at whatever speed the ball is actually dropping: a smash slams
+    // it shut, a lob leaves it hanging almost still at the apex.
+    const k = Math.max(0, Math.min(1, height / MARKER_CEIL_Y));
+    const radius = MARKER_MIN_R + (MARKER_MAX_R - MARKER_MIN_R) * k;
+    this.markerFall.visible = true;
+    this.markerFall.position.set(x, 0.024, z);
+    this.markerFall.scale.setScalar(radius);
+    // Fades up as it closes, so the moment of contact is the brightest --
+    // otherwise a huge faint ring is the loudest thing on the court. The floor
+    // has to stay readable though: urgency is near zero exactly while a lob is
+    // at its peak, which is the one moment the wide ring is the only thing
+    // telling you where the ball went, so it only trims the edges here.
+    this.markerFall.material.opacity = (0.22 + (1 - k) * 0.45) * (0.85 + urgency * 0.15);
+    this.markerFall.material.color.setHSL(hue, 0.95, 0.62);
   }
 
   // ---- per-frame ---------------------------------------------------------
 
   updateTrail(ball, dt, enabled, color) {
+    // Hiding the mesh is both cheaper than writing 26 zero-scale matrices and
+    // safer: a zero matrix still leaves a degenerate instance in the buffer.
+    this.trail.visible = enabled;
+    if (!enabled) {
+      // Expire everything, so switching trails back on (or starting the next
+      // rally) cannot resurrect a frozen segment from the last one.
+      for (const p of this.trailPts) p.age = 99;
+      return;
+    }
     this.trailTimer += dt;
-    if (enabled && this.trailTimer > 0.012) {
+    if (this.trailTimer > 0.012) {
       this.trailTimer = 0;
       const p = this.trailPts[this.trailHead];
       this.trailHead = (this.trailHead + 1) % TRAIL_SEGMENTS;
@@ -293,7 +352,7 @@ export class Effects {
       const p = this.trailPts[i];
       p.age += dt;
       const k = Math.max(0, 1 - p.age / 0.28);
-      const s = enabled ? k * 0.055 : 0;
+      const s = k * 0.055;
       v.set(p.x, p.y, p.z);
       scl.setScalar(s);
       mtx.compose(v, q, scl);
@@ -360,6 +419,30 @@ export class Effects {
     }
 
     this.shake = Math.max(0, this.shake - dt * 3.4);
+  }
+
+  // Everything above is added straight to the shared scene, which outlives any
+  // one match. Without this the meshes of a finished game stay in the scene
+  // and keep rendering the last frame they were given -- a trail segment
+  // frozen mid-flight reads as a white blob stuck over the court and the
+  // menus, and every match since start-up leaves another one behind.
+  dispose() {
+    const objs = [this.points, this.trail, this.marker, this.markerFall];
+    for (const r of this.rings) objs.push(r.mesh);
+    for (const t of this.texts) objs.push(t.spr);
+    for (const o of objs) {
+      if (!o) continue;
+      this.scene.remove(o);
+      o.geometry?.dispose();
+      const mats = Array.isArray(o.material) ? o.material : [o.material];
+      for (const m of mats) {
+        if (!m) continue;
+        m.map?.dispose();
+        m.dispose();
+      }
+    }
+    this.rings.length = 0;
+    this.texts.length = 0;
   }
 
   // Current camera offset from screen shake.

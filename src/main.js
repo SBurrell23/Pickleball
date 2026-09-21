@@ -156,6 +156,12 @@ class App {
   // ---- match lifecycle ---------------------------------------------------
 
   beginMatch(mode, config, roster, myIdx) {
+    // Starting a match over a live one used to strand the old Game: its
+    // effects stayed in the shared scene drawing their last frame forever.
+    // Most callers tore down first, but not all of them, and the lobby now
+    // makes match-after-match the normal path -- so do it here where it
+    // cannot be forgotten.
+    this.endMatch();
     this.audio.init();
     this.menus.hide();
     this.hud.dom.style.display = '';

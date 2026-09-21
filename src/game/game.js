@@ -6,7 +6,7 @@ import { createBotState, updateBot } from './ai.js';
 import { predictLanding } from './ballistics.js';
 import {
   MODE, createSwingState, beginSwing, updateSwing, releaseSwing,
-  sweetZone, classifyShot,
+  sweetZone, classifyShot, lobBonus,
 } from './swing.js';
 import { buildBall, buildBallShadow, animateCrowd } from '../render/assets.js';
 import { buildCharacter, animateCharacter, paddleWorldPos } from '../render/character.js';
@@ -126,6 +126,9 @@ export class Game {
     if (this.ballShadow) this.scene.remove(this.ballShadow);
     for (const r of this.rigs) this.scene.remove(r);
     this.rigs.length = 0;
+    // The scene belongs to the view and survives the match, so the effects
+    // have to take themselves out of it or they keep drawing their last frame.
+    this.fx.dispose();
   }
 
   // ---- local player input ------------------------------------------------
@@ -175,6 +178,7 @@ export class Game {
     const mode = button === 2 ? MODE.QUICK : MODE.DRIVE;
     this.swingButton = button;
     beginSwing(this.swing, mode, this.myTuning, Math.random, this.zoneScaleFor(mode));
+    this.applyLobBonus();
     this.audio.chargeStart();
   }
 
@@ -185,6 +189,17 @@ export class Game {
     const serving = this.sim.phase === PHASE.SERVE && this.sim.serverIdx === this.myIdx;
     if (!serving) return 1;
     return mode === MODE.QUICK ? SWING.SERVE_ZONE_QUICK : SWING.SERVE_ZONE;
+  }
+
+  // Sitting under a lob should be an invitation, not just a long wait: the
+  // higher it went, the wider the band. Taken while charging rather than only
+  // at the start, because you often begin the swing before the ball is at its
+  // peak -- and only ever upward, so the target cannot move against you.
+  applyLobBonus() {
+    const b = this.sim.ball;
+    if (!b.live || b.lastHit === this.myIdx) return;
+    const want = lobBonus(Math.max(b.peakY ?? 0, b.p.y));
+    if (want > this.swing.lobBonus) this.swing.lobBonus = want;
   }
 
   onRelease(button) {
@@ -267,6 +282,7 @@ export class Game {
 
     if (this.swing.active && !this.paused) {
       updateSwing(this.swing, dt, this.myTuning);
+      this.applyLobBonus();
       const zone = sweetZone(this.swing, this.myTuning, this.settings.get('meterAssist'));
       const pos = this.swing.t;
       const inSweet = Math.abs(pos - zone.center) <= zone.half;
@@ -578,7 +594,7 @@ export class Game {
       const land = predictLanding(b, 3);
       const incoming = Math.sign(land.z) === me.side;
       this.fx.setLanding(land.x, land.z, !land.hitNet,
-        incoming ? Math.max(0, 1 - land.t / 1.1) * 0.8 : 0);
+        incoming ? Math.max(0, 1 - land.t / 1.1) * 0.8 : 0, b.p.y);
     } else {
       this.fx.setLanding(0, 0, false);
     }

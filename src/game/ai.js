@@ -3,6 +3,7 @@ import { PHASE, SWINGSTATE } from './sim.js';
 import { getCharacter, swingTuning } from './characters.js';
 import {
   MODE, createSwingState, beginSwing, updateSwing, releaseSwing, classifyShot,
+  lobBonus,
 } from './swing.js';
 
 // The paddle goes live SWING_WINDUP after release and stays live for
@@ -260,6 +261,8 @@ export function updateBot(sim, p, st, dt) {
   // ---- swinging ----
   if (st.sw.active) {
     updateSwing(st.sw, dt, tune);
+    const lb = lobBonus(Math.max(sim.ball.peakY ?? 0, sim.ball.p.y));
+    if (lb > st.sw.lobBonus) st.sw.lobBonus = lb;
     inp.charging = true;
     inp.chargeVis = st.sw.t;
 
@@ -319,6 +322,9 @@ export function updateBot(sim, p, st, dt) {
     const chargeNeeded = (mode === MODE.QUICK ? quickNeed : driveNeed) - CONTACT_LEAD;
     if (arrival.t <= chargeNeeded + CONTACT_LEAD) {
       beginSwing(st.sw, mode, tune);
+      // Bots get the same reward for putting away a lob that a player does,
+      // so throwing one up is a real risk rather than a free reset.
+      st.sw.lobBonus = lobBonus(Math.max(sim.ball.peakY ?? 0, sim.ball.p.y));
       st.mode = mode;
       st.leadAtStart = arrival.t;
 

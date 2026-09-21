@@ -84,6 +84,16 @@ export const SWING = {
                             // the time of a full drive
   QUICK_POWER: 0.50,        // and can never hit anywhere near a drive's pace
   MIN_HOLD: 0.045,          // taps below this are treated as a quick block
+  // Putting a lob up hands the other side a long, slow, obvious ball. Sitting
+  // under one should be a chance to tee off, so the sweet band widens with how
+  // high the ball got: a token lift is worth nothing, a moon ball is worth a
+  // much bigger window. This is the price of the lob, and it applies to bots
+  // too, so throwing one up is a real decision rather than a free reset.
+  // Thresholds set against measured play: a real lob peaks around 8m, so a
+  // ball has to clear well above anyone's reach before it counts at all.
+  LOB_APEX_LO: 3.5,         // below this apex it is just a normal ball
+  LOB_APEX_HI: 9.0,         // a full moon ball, worth the whole bonus
+  LOB_SWEET: 2.40,          // sweet/perfect band multiplier at full height
 };
 
 export const RULES = {

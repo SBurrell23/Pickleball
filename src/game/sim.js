@@ -97,6 +97,10 @@ export class Sim {
       live: false, held: true,
       lastHit: -1, lastTeam: -1,
       shotCount: 0, bouncesSinceHit: 0, bounceInKitchen: false,
+      // Highest the ball has been since it was last struck. Reading a lob is
+      // about how high it went, not where it is right now, so the receiver's
+      // sweet-spot bonus is keyed off the apex rather than live height.
+      peakY: 1,
     };
     this.ballHistory.length = 0;
     this.setupServe();
@@ -169,6 +173,7 @@ export class Sim {
     b.spin = 0; b.sideSpin = 0;
     b.lastHit = -1; b.lastTeam = -1;
     b.shotCount = 0; b.bouncesSinceHit = 0; b.bounceInKitchen = false;
+    b.peakY = b.p.y;
     this.rallyShots = 0;
     this.phase = PHASE.SERVE;
     this.phaseT = 0;
@@ -334,6 +339,7 @@ export class Sim {
     b.p.x += b.v.x * dt;
     b.p.y += b.v.y * dt;
     b.p.z += b.v.z * dt;
+    if (b.p.y > b.peakY) b.peakY = b.p.y;
 
     // Net plane crossing
     if (prevZ * b.p.z < 0) {
@@ -660,6 +666,7 @@ export class Sim {
     b.lastHit = p.idx; b.lastTeam = p.team;
     b.bouncesSinceHit = 0;
     b.bounceInKitchen = false;
+    b.peakY = b.p.y;
     b.shotCount++;
     this.rallyShots++;
     p.lastContact = this.time;
@@ -689,7 +696,7 @@ export class Sim {
       b: {
         p: [this.ball.p.x, this.ball.p.y, this.ball.p.z],
         v: [this.ball.v.x, this.ball.v.y, this.ball.v.z],
-        s: this.ball.spin, ss: this.ball.sideSpin,
+        s: this.ball.spin, ss: this.ball.sideSpin, pk: this.ball.peakY,
         l: this.ball.live ? 1 : 0, h: this.ball.held ? 1 : 0,
         lh: this.ball.lastHit, lt: this.ball.lastTeam,
         sh: this.ball.shotCount, bb: this.ball.bouncesSinceHit,
@@ -709,6 +716,9 @@ export class Sim {
     b.p.x = s.b.p[0]; b.p.y = s.b.p[1]; b.p.z = s.b.p[2];
     b.v.x = s.b.v[0]; b.v.y = s.b.v[1]; b.v.z = s.b.v[2];
     b.spin = s.b.s; b.sideSpin = s.b.ss;
+    // The client never steps the ball, so the apex has to travel with it or
+    // the receiver's lob bonus would never fire online.
+    b.peakY = s.b.pk ?? b.p.y;
     b.live = !!s.b.l; b.held = !!s.b.h;
     b.lastHit = s.b.lh; b.lastTeam = s.b.lt;
     b.shotCount = s.b.sh; b.bouncesSinceHit = s.b.bb;
