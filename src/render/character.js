@@ -171,8 +171,10 @@ function damp(cur, target, lambda, dt) {
   return cur + (target - cur) * (1 - Math.exp(-lambda * dt));
 }
 
-// Paddle pose per swing phase, in the rig's local space: +x is the player's
-// right, +z is the way they are facing. `side` is 1 for a forehand.
+// Paddle pose per swing phase. The rig's local +z is the way the player faces,
+// and for a figure facing +z their right hand is world -x -- so local -x is the
+// player's right, which is also screen-right from behind them. `s` is therefore
+// the negated forehand side.
 function paddlePose(p, side) {
   const s = side;
   if (p.swingState === SWINGSTATE.WINDUP) {
@@ -225,7 +227,9 @@ export function animateCharacter(rig, p, dt, time) {
   u.head.rotation.z = damp(u.head.rotation.z, localR * 0.026, 7, dt);
 
   // --- floating paddle ---
-  const side = p.swingSide >= 0 ? 1 : -1;
+  // Forehand (swingSide 1) puts the paddle on the player's right, which is
+  // local -x. See the note on paddlePose.
+  const side = p.swingSide >= 0 ? -1 : 1;
   const pose = paddlePose(p, side);
   const pad = u.paddle;
   const k = pose.k;
