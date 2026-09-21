@@ -366,7 +366,16 @@ function buildCrowd() {
         const x = s * (APRON_X + 0.6 + r * 0.9);
         const z = (k / (perRow - 1) - 0.5) * COURT.HALF_L * 1.7;
         const y = 0.42 + r * 0.42;
-        seeds.push({ x, y, z, phase: Math.random() * 6.283, amp: 0.02 + Math.random() * 0.05 });
+        seeds.push({
+          x, y, z,
+          phase: Math.random() * 6.283,
+          amp: 0.05 + Math.random() * 0.09,
+          // Everyone has their own jump rhythm and their own starting point in
+          // it, so a cheering crowd ripples instead of pulsing in unison.
+          period: 0.62 + Math.random() * 0.36,
+          offset: Math.random(),
+          sway: 0.7 + Math.random() * 0.7,
+        });
         m.compose(new THREE.Vector3(x, y + 0.3, z), q, sc);
         bodies.setMatrixAt(i, m);
         bodies.setColorAt(i, new THREE.Color(shirt[(Math.random() * shirt.length) | 0]));
@@ -384,20 +393,38 @@ function buildCrowd() {
   return group;
 }
 
-export function animateCrowd(group, time, excitement = 0) {
+// Takes dt, not absolute time, and advances its own clock. Driving the phase
+// as `time * frequency` looks fine until the frequency changes: the argument
+// then jumps by `time * delta`, which after a few minutes of play is hundreds
+// of radians, and the whole crowd teleports to a random point in its cycle.
+// Excitement may now only scale amplitudes, never rates.
+export function animateCrowd(group, dt, excitement = 0) {
   const d = group.userData;
   if (!d) return;
+  d.clock = (d.clock || 0) + dt;
+  const t = d.clock;
+  const hype = Math.max(0, Math.min(1, excitement));
+
   const m = new THREE.Matrix4();
   const q = new THREE.Quaternion();
   const sc = new THREE.Vector3(1, 1, 1);
   const v = new THREE.Vector3();
+
   for (let i = 0; i < d.count; i++) {
     const s = d.seeds[i];
-    const bob = Math.sin(time * (2.0 + excitement * 5) + s.phase) * s.amp * (1 + excitement * 3);
-    v.set(s.x, s.y + 0.3 + Math.max(0, bob), s.z);
+    // Always-on idle sway, at a rate that never changes.
+    let lift = Math.sin(t * s.sway + s.phase) * 0.012;
+
+    if (hype > 0.02) {
+      // A real jump: leave the ground, arc, land. Parabola over each cycle.
+      const u = (t / s.period + s.offset) % 1;
+      lift += 4 * u * (1 - u) * s.amp * hype;
+    }
+
+    v.set(s.x, s.y + 0.3 + lift, s.z);
     m.compose(v, q, sc);
     d.bodies.setMatrixAt(i, m);
-    v.set(s.x, s.y + 0.62 + Math.max(0, bob), s.z);
+    v.set(s.x, s.y + 0.62 + lift, s.z);
     m.compose(v, q, sc);
     d.heads.setMatrixAt(i, m);
   }

@@ -51,7 +51,9 @@ export class Game {
     this.aim = new THREE.Vector3(0, 0.02, 0);
     this.aimWorld = new THREE.Vector3();
     this._paddlePos = new THREE.Vector3();
+    this._proj = new THREE.Vector3();
     this.crowdHype = 0;
+    this.crowdShown = 0;
     this.lastShotWasSmash = false;
     this._sparkColor = new THREE.Color();
     this.sparkAccum = [];
@@ -590,9 +592,13 @@ export class Game {
       this.fx.setLanding(0, 0, false);
     }
 
-    this.crowdHype = Math.max(0, this.crowdHype - dt * 0.45);
+    // Excitement decays, and what the crowd actually shows chases it rather
+    // than snapping -- they should get to their feet, not pop.
+    this.crowdHype = Math.max(0, this.crowdHype - dt * 0.42);
+    const want = Math.max(this.crowdHype, Math.min(0.4, this.fx.shake));
+    this.crowdShown += (want - this.crowdShown) * (1 - Math.exp(-3.4 * dt));
     if (this.crowd && this.settings.get('crowd3d')) {
-      animateCrowd(this.crowd, time, Math.max(this.crowdHype, Math.min(0.5, this.fx.shake)));
+      animateCrowd(this.crowd, dt, this.crowdShown);
     }
 
     this.fx.update(dt, this.view.camera, this.view.renderer.domElement.height);
@@ -601,17 +607,29 @@ export class Game {
     this.updateHud(dt);
   }
 
-  // Where a player's paddle should drift toward. For you that is the mouse, so
-  // the paddle tracks your aim; for everyone else it is the ball, which is
-  // where they are looking anyway.
+  // Which side of themselves a player holds the paddle. Measured in screen
+  // space against the cursor, because that is what the player is actually
+  // judging: is the mouse left or right of my character. Deriving it from the
+  // 3D aim angle instead gives almost no lateral range -- the aim point is
+  // eleven metres downcourt, so even the far corners are only ~17 degrees off
+  // centre -- and it skews with where on the court you happen to be standing.
   setPaddleAim(p, i) {
-    let tx, tz;
-    if (i === this.myIdx) { tx = this.aim.x; tz = this.aim.z; }
-    else { tx = this.sim.ball.p.x; tz = this.sim.ball.p.z; }
-    const dx = tx - p.x, dz = tz - p.z;
-    const len = Math.hypot(dx, dz);
-    if (len < 0.001) { p.paddleAimX = Math.sin(p.facing); p.paddleAimZ = Math.cos(p.facing); }
-    else { p.paddleAimX = dx / len; p.paddleAimZ = dz / len; }
+    if (i !== this.myIdx) {
+      p.paddleLateral = undefined;
+      p.paddleForward = undefined;
+      return;
+    }
+    const cv = this.view.renderer.domElement;
+    const w = cv.clientWidth, h = cv.clientHeight;
+    this._proj.set(p.x, 0.9, p.z).project(this.view.camera);
+    const px = (this._proj.x * 0.5 + 0.5) * w;
+    const py = (-this._proj.y * 0.5 + 0.5) * h;
+    const m = this.input.mouse;
+    const clamp = (v) => Math.max(-1, Math.min(1, v));
+    // Positive lateral means the cursor is to the right of the character.
+    p.paddleLateral = clamp((m.x - px) / (w * 0.32));
+    // Positive forward means the cursor is further up the court than they are.
+    p.paddleForward = Math.max(0, Math.min(1, (py - m.y) / (h * 0.30)));
   }
 
   // Sparks stream off a paddle that is winding up. The rate and colour track

@@ -110,6 +110,7 @@ export class Menus {
 
   hide() {
     this.screen = null;
+    this._renderedScreen = null;
     this.el.classList.remove('open');
     this.el.innerHTML = '';
   }
@@ -204,8 +205,28 @@ export class Menus {
 
   render() {
     const fn = this['screen_' + this.screen];
-    if (!fn) { this.el.innerHTML = ''; return; }
+    if (!fn) { this.el.innerHTML = ''; this._renderedScreen = null; return; }
+
+    // Picking a character or a difficulty re-renders the same screen. Rebuilding
+    // the markup is fine, but the panel must not replay its entrance animation
+    // or restart from the top, or every click looks like the dialog flashed.
+    const sameScreen = this._renderedScreen === this.screen;
+    const oldBody = this.el.querySelector('.menu-body');
+    const scroll = sameScreen && oldBody ? oldBody.scrollTop : 0;
+    const typed = sameScreen
+      ? (this.el.querySelector('#playerName') || {}).value : undefined;
+
     this.el.innerHTML = fn.call(this);
+    this._renderedScreen = this.screen;
+
+    const panel = this.el.querySelector('.menu-panel');
+    if (panel && !sameScreen) panel.classList.add('enter');
+    const body = this.el.querySelector('.menu-body');
+    if (body && scroll) body.scrollTop = scroll;
+    // A half-typed name would otherwise be thrown away by the re-render.
+    const nameInput = this.el.querySelector('#playerName');
+    if (nameInput && typed !== undefined) nameInput.value = typed;
+
     this.afterRender();
   }
 

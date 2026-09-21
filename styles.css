@@ -211,8 +211,10 @@ html, body {
   border-radius: var(--radius);
   box-shadow: var(--shadow);
   overflow: hidden;
-  animation: serve 0.26s cubic-bezier(.2, 1.4, .4, 1);
 }
+
+/* Only on first appearance -- re-rendering the same screen must not replay it. */
+.menu-panel.enter { animation: serve 0.26s cubic-bezier(.2, 1.4, .4, 1); }
 .menu-panel.wide { width: min(940px, 100%); }
 
 @keyframes serve {
@@ -734,5 +736,5 @@ ul.rules b { color: var(--ink); }
 .fatal pre { white-space: pre-wrap; font-size: 12px; }
 
 @media (prefers-reduced-motion: reduce) {
-  .msg, .menu-panel, .brand-mark, .spinner { animation: none; }
+  .msg, .menu-panel, .menu-panel.enter, .brand-mark, .spinner { animation: none; }
 }

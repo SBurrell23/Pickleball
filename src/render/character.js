@@ -256,15 +256,17 @@ function paddlePose(p, side) {
       rx: 0.22, ry: s * 1.0, rz: -s * 0.45, k: 14, aim: 0.3 };
   }
   if (p.charging) {
-    // Wind up and back as the meter fills.
+    // Winds back as the meter fills, and commits to the swing side as it goes:
+    // early in the charge it still tracks the mouse, by full charge it is
+    // loaded on the side the stroke will come from.
     const t = Math.min(1, p.chargeVis);
-    return { x: s * (0.56 + t * 0.16), y: 0.76 + t * 0.32, z: -0.04 - t * 0.26,
-      rx: -0.18 - t * 0.38, ry: -s * (0.35 + t * 0.75), rz: s * (0.14 + t * 0.28),
-      k: 16, aim: 1 - t * 0.55 };
+    return { x: s * (0.16 + t * 0.44), y: 0.76 + t * 0.32, z: -0.04 - t * 0.26,
+      rx: -0.18 - t * 0.38, ry: -s * (0.10 + t * 0.85), rz: s * (0.14 + t * 0.28),
+      k: 16, aim: 0.95 - t * 0.6 };
   }
-  // Idle: floats out to the side, face turned toward the net.
-  return { x: s * 0.52, y: 0.74, z: 0.10, rx: 0.02, ry: -s * 0.32, rz: s * 0.12,
-    k: 10, aim: 1 };
+  // Idle: no fixed side at all. Where the paddle sits is entirely the aim
+  // sweep below, so it crosses the body as the mouse crosses the player.
+  return { x: 0, y: 0.74, z: 0.10, rx: 0.02, ry: 0, rz: 0, k: 10, aim: 1 };
 }
 
 // Returns true on frames where a moving player should kick up dust.
@@ -299,20 +301,29 @@ export function animateCharacter(rig, p, dt, time) {
   const pad = u.paddle;
   const k = pose.k;
 
-  // The paddle drifts toward where the player is pointing. `paddleAim` is a
-  // world-space direction set by the caller; rotate it into the rig's frame so
-  // "left of the player" means left from the player's own point of view.
-  // A swing overrides this entirely (pose.aim === 0).
+  // Where the paddle sits across the body is the aim, not the ball. `paddleAim`
+  // is a world direction from the caller; rotated into the rig's frame, its x
+  // says how far to the player's left or right they are pointing -- so the
+  // paddle sweeps the whole way across, forehand to backhand, and keeps doing
+  // it between points. A committed swing overrides it (pose.aim === 0).
   const aimW = pose.aim ?? 1;
   let slide = 0, reach = 0, twist = 0;
   if (aimW > 0) {
-    const ax = p.paddleAimX ?? sin;
-    const az = p.paddleAimZ ?? cos;
-    const localAimX = ax * cos - az * sin;
-    const localAimZ = ax * sin + az * cos;
-    slide = localAimX * 0.58 * aimW;
-    reach = Math.max(0, localAimZ) * 0.34 * aimW;
-    twist = -localAimX * 0.55 * aimW;
+    let lateral, forward;
+    if (p.paddleLateral === undefined) {
+      // Bots and remote players have no cursor: rest on the forehand side.
+      lateral = -side * 0.75;
+      forward = 0.8;
+    } else {
+      lateral = p.paddleLateral;
+      forward = p.paddleForward ?? 0.6;
+    }
+    // The rig's local +x is the player's LEFT, so a cursor to the right of
+    // them puts the paddle at negative local x. Full range either way, so the
+    // paddle genuinely crosses the body forehand to backhand.
+    slide = -lateral * 0.74 * aimW;
+    reach = forward * 0.34 * aimW;
+    twist = lateral * 0.95 * aimW;
   }
   // A slow drift keeps the idle paddle from looking pinned in place.
   const idle = p.swingState === SWINGSTATE.IDLE && !p.charging;
