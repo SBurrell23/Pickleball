@@ -134,7 +134,7 @@ export class Sim {
       p.charging = false; p.chargeVis = 0;
       p.swingState = SWINGSTATE.IDLE; p.swingT = 0; p.pending = null;
       p.dashT = 0;
-      p.stamina = Math.min(PLAY.STAMINA_MAX, p.stamina + 30);
+      p.stamina = Math.min(PLAY.STAMINA_MAX, p.stamina + 20);
       p.facing = p.side > 0 ? Math.PI : 0;
     }
     server.x = sx;

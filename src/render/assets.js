@@ -28,6 +28,10 @@ function canvasTex(w, h, draw, repeat = null) {
   const g = c.getContext('2d');
   draw(g, w, h);
   const t = new THREE.CanvasTexture(c);
+  // Canvas pixels are sRGB. Textures default to NoColorSpace, so without this
+  // three feeds the sRGB values straight in as linear and every painted
+  // surface comes out washed out and too bright.
+  t.colorSpace = THREE.SRGBColorSpace;
   t.anisotropy = 4;
   if (repeat) {
     t.wrapS = t.wrapT = THREE.RepeatWrapping;
@@ -36,19 +40,33 @@ function canvasTex(w, h, draw, repeat = null) {
   return t;
 }
 
-// Fine speckle so the court surface is not a flat colour field.
-function surfaceTexture(base, speck) {
+// Acrylic court paint is sand-filled, so it has a fine grain rather than a
+// flat colour. Kept subtle on purpose: enough to catch the light and stop the
+// big painted areas reading as plastic, not enough to look noisy.
+function courtGrain(base, light, dark, repeat, density = 11000) {
   return canvasTex(256, 256, (g, w, h) => {
     g.fillStyle = base;
     g.fillRect(0, 0, w, h);
-    g.fillStyle = speck;
-    for (let i = 0; i < 5200; i++) {
-      const x = Math.random() * w, y = Math.random() * h;
-      g.globalAlpha = 0.05 + Math.random() * 0.14;
-      g.fillRect(x, y, 1 + Math.random(), 1 + Math.random());
+
+    // Very broad tonal drift, so large areas are not perfectly even.
+    for (let i = 0; i < 18; i++) {
+      g.globalAlpha = 0.03 + Math.random() * 0.035;
+      g.fillStyle = Math.random() < 0.5 ? light : dark;
+      g.beginPath();
+      g.arc(Math.random() * w, Math.random() * h, 30 + Math.random() * 80, 0, Math.PI * 2);
+      g.fill();
+    }
+
+    // The grain itself: single-pixel grit, half lighter and half darker so it
+    // reads as texture rather than as a tint.
+    for (let i = 0; i < density; i++) {
+      g.globalAlpha = 0.05 + Math.random() * 0.13;
+      g.fillStyle = Math.random() < 0.5 ? light : dark;
+      const r = Math.random() < 0.85 ? 1 : 2;
+      g.fillRect(Math.random() * w, Math.random() * h, r, r);
     }
     g.globalAlpha = 1;
-  }, [6, 6]);
+  }, repeat);
 }
 
 // The apron is a laid sport surface, not turf: coarse aggregate grain, patchy
@@ -163,15 +181,15 @@ export function buildCourt(quality = 'high') {
     new THREE.BoxGeometry(COURT.HALF_W * 2 + 0.02, 0.02, COURT.HALF_L * 2 + 0.02),
     mat(0x2f7fc4, { roughness: 0.9 })
   );
-  surface.material.map = surfaceTexture('#2f7fc4', '#1d568e');
+  surface.material.map = courtGrain('#2f7fc4', '#5ba3dd', '#1d568e', [9, 18]);
   surface.position.y = 0.006;
   surface.receiveShadow = quality !== 'off';
   root.add(surface);
 
   // The kitchen gets its own shade so the shot-type boundary is readable
   // from the play camera at a glance.
-  const kitchenMat = mat(0x1fa091, { roughness: 0.9 });
-  kitchenMat.map = surfaceTexture('#1fa091', '#12665c');
+  const kitchenMat = mat(0xffffff, { roughness: 0.9 });
+  kitchenMat.map = courtGrain('#1fa091', '#45c4b4', '#12665c', [9, 4]);
   for (const s of [-1, 1]) {
     const k = new THREE.Mesh(
       new THREE.BoxGeometry(COURT.HALF_W * 2, 0.02, COURT.KITCHEN),
@@ -183,7 +201,9 @@ export function buildCourt(quality = 'high') {
   }
 
   // Lines
-  const lineMat = mat(0xf4f7fb, { roughness: 0.7, emissive: 0x223344, emissiveIntensity: 0.12 });
+  // The lines are painted on the same surface, so they carry the same grit.
+  const lineMat = mat(0xffffff, { roughness: 0.7, emissive: 0x223344, emissiveIntensity: 0.10 });
+  lineMat.map = courtGrain('#f4f7fb', '#ffffff', '#c9d3de', [3, 40], 8000);
   const line = (x, z, w, l) => {
     const m = new THREE.Mesh(new THREE.BoxGeometry(w, 0.012, l), lineMat);
     m.position.set(x, 0.021, z);

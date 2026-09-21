@@ -48,9 +48,10 @@ export const PLAY = {
   DASH_SPEED: 11.2,
   DASH_TIME: 0.17,
   DASH_CD: 0.85,
-  DASH_COST: 34,
-  STAMINA_MAX: 100,
-  STAMINA_REGEN: 26,
+  DASH_COST: 30,
+  STAMINA_MAX: 80,
+  STAMINA_REGEN: 8.7,   // roughly a third of what it was: a spent bar is a
+                        // real cost for the next several seconds
   REACH_BASE: 1.20,     // paddle reach radius from player centre
   REACH_HEIGHT: 2.20,   // highest ball a player can reach (times character scale);
                         // generous on purpose -- if the smaller characters

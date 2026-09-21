@@ -41,7 +41,7 @@ export const CHARACTERS = [
     name: 'Zip',
     title: 'Speed',
     blurb: 'Gets to everything. Getting it back is the hard part.',
-    stats: { speed: 1.22, reach: 0.96, control: 0.96, drive: 0.97, dink: 1.00 },
+    stats: { speed: 1.12, reach: 0.96, control: 0.96, drive: 0.97, dink: 1.00 },
     colors: { primary: 0x33b6e0, secondary: 0xfdfdfd, trim: 0x1a5f7a, skin: 0xf0c9a0 },
     build: { torso: 'slim', head: 'round', crest: 'ponytail', scale: 0.86, bulk: 0.8 },
   },

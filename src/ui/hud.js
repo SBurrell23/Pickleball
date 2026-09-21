@@ -1,4 +1,5 @@
 import { MODE, sweetZone } from '../game/swing.js';
+import { PLAY } from '../game/constants.js';
 import { drawReticle } from './reticle.js';
 
 // The swing meter is the thing the player actually looks at, so it is drawn on
@@ -281,7 +282,7 @@ export class Hud {
     const pad = 26;
     const w = 260, h = 20;
     const x = pad, y = this.h - pad - 42;
-    const st = Math.max(0, Math.min(1, p.stamina / 100));
+    const st = Math.max(0, Math.min(1, p.stamina / PLAY.STAMINA_MAX));
     const low = st <= 0.34;
 
     g.save();
