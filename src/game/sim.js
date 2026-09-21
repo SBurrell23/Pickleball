@@ -159,7 +159,7 @@ export class Sim {
 
     const b = this.ball;
     b.held = true; b.live = false;
-    b.p.x = sx; b.p.y = 0.95; b.p.z = server.z - side * 0.25;
+    b.p.x = sx - side * 0.08; b.p.y = 0.95; b.p.z = server.z - side * 0.25;
     b.v.x = 0; b.v.y = 0; b.v.z = 0;
     b.spin = 0; b.sideSpin = 0;
     b.lastHit = -1; b.lastTeam = -1;
@@ -216,7 +216,7 @@ export class Sim {
     if (this.phase === PHASE.SERVE) {
       const s = this.players[this.serverIdx];
       // Keep the held ball glued to the server paddle.
-      this.ball.p.x = s.x + s.side * 0.08;
+      this.ball.p.x = s.x - s.side * 0.08;
       this.ball.p.y = 0.95;
       this.ball.p.z = s.z - s.side * 0.30;
     } else if (this.phase === PHASE.RALLY) {
@@ -287,6 +287,11 @@ export class Sim {
     while (d < -Math.PI) d += Math.PI * 2;
     p.facing += d * Math.min(1, dt * 11);
 
+    // Keep the forehand/backhand read live while idle, so the floating paddle
+    // sits on the correct side before the swing is committed.
+    if (p.swingState === SWINGSTATE.IDLE) {
+      p.swingSide = (this.ball.p.x - p.x) * (p.side < 0 ? 1 : -1) >= 0 ? 1 : -1;
+    }
     p.charging = !!inp.charging && p.swingState === SWINGSTATE.IDLE;
     p.chargeVis = inp.chargeVis || 0;
     p.anim.run = Math.hypot(p.vx, p.vz);

@@ -4,10 +4,13 @@ A Mario Tennis–style pickleball game for two or four players. Vanilla JavaScri
 Three.js for rendering, PeerJS for peer-to-peer multiplayer. No build step, no
 backend, no install — every asset and every sound is generated in code at runtime.
 
-Chibi characters on a daylight court, under a procedural sky with clouds and
-grass running to the horizon. The court, the net's sag, the crowd, the player
-models, the portraits and the whole soundtrack are all built from primitives and
-oscillators at load time; there is not a single image or audio file in the repo.
+A daylight court under a procedural sky, with clouds and grass running to the
+horizon. Players are deliberately anonymous -- a floating body and a head, like
+the crowd -- that lean into their movement, with a paddle attached to nothing
+that hovers beside them and does the acting. The court, the net's sag, the
+crowd, the player models, the portraits and every sound effect are built from
+primitives and oscillators at load time. The only asset file is the background
+music track.
 
 **Play:** https://sburrell23.github.io/Pickleball/
 
@@ -16,7 +19,7 @@ oscillators at load time; there is not a single image or audio file in the repo.
 | Input | Action |
 | --- | --- |
 | `W` `A` `S` `D` | Move. `W` is always toward the net, whichever side you are on. |
-| Mouse | Aim. The marker on the far court is where the ball will actually land. |
+| Mouse | Aim. The reticle replaces the system cursor; the marker on the far court is where the ball will actually land. |
 | Hold left click | Wind up. Which meter you get depends on where you are standing. |
 | Release left click | Swing. Land the marker in the sweet spot. |
 | Right click / `Space` | Hold while swinging for a soft shot — a lob from deep, a drop at the net. |
@@ -88,12 +91,16 @@ Graphics, audio and feel are all adjustable from the menu and persist locally.
 
 - **Graphics** — frame rate cap, anti-aliasing (off / FXAA / MSAA), resolution
   scale, shadow quality, particle density, ball trail, glow, animated crowd,
-  screen shake, field of view, FPS counter.
+  screen shake, FPS counter. Field of view is deliberately not a setting: the
+  camera framing and the mouse-to-court aim mapping are tuned around one lens.
 - **Audio** — master, effects, music and crowd ambience, plus mute-on-blur.
 - **Gameplay** — CPU difficulty (Easy / Normal / Hard, also pickable straight
   from the pre-match screen), timing-window width (a comfort option that widens
-  both sweet spots), camera mode, aim sensitivity, crosshair and landing marker
-  toggles, and colourblind palettes.
+  both sweet spots), camera mode, aim sensitivity, landing marker toggle, and
+  colourblind palettes.
+- **Cursor** — the system cursor is hidden during a match and the reticle you
+  aim with replaces it, so its shape, colour and size are configurable, with a
+  live preview drawn over the four court colours it has to stay readable on.
 
 Anti-aliasing is a WebGL context-creation setting, so changing it rebuilds the
 renderer; everything else applies live.
@@ -143,7 +150,7 @@ vendor/               pinned Three.js and PeerJS
 src/
   main.js             app shell: menus, lobby, match lifecycle, frame loop
   core/               settings persistence, keyboard and mouse input
-  audio/audio.js      the whole soundtrack and every effect, synthesized
+  audio/audio.js      every sound effect, synthesized; streams the music track
   game/
     constants.js      court dimensions and physics tuning
     ballistics.js     launch solving, drag correction, landing prediction
@@ -154,11 +161,13 @@ src/
     game.js           ties simulation, rendering, netcode and input together
   net/                PeerJS transport, snapshot interpolation, reconciliation
   render/             procedural court, character rigs, effects, renderer
-  ui/                 HUD canvas, menu screens, character portraits
+  ui/                 HUD canvas, menu screens, portraits, aiming reticle
+assets/audio/         background music (the repo's only asset file)
 tools/                dev server and headless test harnesses
 ```
 
 ## Credits
 
 [Three.js](https://threejs.org) and [PeerJS](https://peerjs.com), both MIT
-licensed, vendored under `vendor/`. Everything else is original.
+licensed, vendored under `vendor/`. The music track was supplied by the project
+owner. Everything else is original.

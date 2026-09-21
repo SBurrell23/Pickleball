@@ -400,9 +400,10 @@ class App {
       this.game.update(dt);
     } else {
       // Idle menu scene: slowly orbit so the background is not static.
+      // Wider orbit than the play camera needs, because the lens is narrow.
       const t = now / 1000;
-      this.view.camera.position.set(Math.sin(t * 0.08) * 16, 7.5, Math.cos(t * 0.08) * 16);
-      this.view.camera.lookAt(0, 0.8, 0);
+      this.view.camera.position.set(Math.sin(t * 0.07) * 27, 12.5, Math.cos(t * 0.07) * 27);
+      this.view.camera.lookAt(0, 0.6, 0);
     }
 
     this.view.render();

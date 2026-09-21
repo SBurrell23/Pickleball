@@ -10,7 +10,6 @@ export const DEFAULTS = {
   trails: true,
   glow: true,
   shake: 0.7,            // 0 .. 1
-  fov: 52,
   showFps: false,
   crowd3d: true,
 
@@ -25,9 +24,12 @@ export const DEFAULTS = {
   meterAssist: 1.0,      // 1.0 = normal sweet spots, up to 1.6 = forgiving
   difficulty: 'normal',  // easy | normal | hard
   aimSensitivity: 1.0,
-  showReticle: true,
+  // The OS cursor is hidden during play, so the reticle is not optional --
+  // these choose what it looks like instead of whether it exists.
+  cursorStyle: 'reticle',
+  cursorColor: 'ball',
+  cursorScale: 1.0,
   showLanding: true,
-  showTrajectory: false,
   cameraMode: 'follow',  // follow | fixed | broadcast
   colorblind: 'off',     // off | deuter | protan | tritan
   screenShakeOnHit: true,
@@ -46,9 +48,9 @@ function clampNum(v, lo, hi, dflt) {
 }
 
 const RANGES = {
-  renderScale: [0.4, 1.0], particles: [0, 1.5], shake: [0, 1], fov: [35, 75],
+  renderScale: [0.4, 1.0], particles: [0, 1.5], shake: [0, 1],
   master: [0, 1], sfx: [0, 1], music: [0, 1], ambience: [0, 1],
-  meterAssist: [0.7, 1.7], aimSensitivity: [0.3, 2.5],
+  meterAssist: [0.7, 1.7], aimSensitivity: [0.3, 2.5], cursorScale: [0.7, 1.8],
 };
 
 const ENUMS = {
@@ -57,6 +59,8 @@ const ENUMS = {
   difficulty: ['easy', 'normal', 'hard'],
   cameraMode: ['follow', 'fixed', 'broadcast'],
   colorblind: ['off', 'deuter', 'protan', 'tritan'],
+  cursorStyle: ['reticle', 'ring', 'cross', 'dot', 'chevron', 'target'],
+  cursorColor: ['white', 'ball', 'teal', 'orange', 'magenta', 'ink'],
 };
 
 function sanitize(raw) {

@@ -51,6 +51,8 @@ export class Input {
       this.mouse.ndcY = -((this.mouse.y / r.height) * 2 - 1);
       this.mouse.inside = true;
     };
+    this._onLeave = () => { this.mouse.inside = false; };
+    this._onEnter = () => { this.mouse.inside = true; };
     this._onDown = (e) => {
       if (!this.enabled) return;
       this._onMove(e);
@@ -71,6 +73,8 @@ export class Input {
     window.addEventListener('keyup', this._onKeyUp);
     window.addEventListener('blur', this._onBlur);
     el.addEventListener('pointermove', this._onMove);
+    el.addEventListener('pointerleave', this._onLeave);
+    el.addEventListener('pointerenter', this._onEnter);
     el.addEventListener('pointerdown', this._onDown);
     // Listen for release on the window so dragging off-canvas still releases.
     window.addEventListener('pointerup', this._onUp);
@@ -82,6 +86,8 @@ export class Input {
     window.removeEventListener('keyup', this._onKeyUp);
     window.removeEventListener('blur', this._onBlur);
     this.el.removeEventListener('pointermove', this._onMove);
+    this.el.removeEventListener('pointerleave', this._onLeave);
+    this.el.removeEventListener('pointerenter', this._onEnter);
     this.el.removeEventListener('pointerdown', this._onDown);
     window.removeEventListener('pointerup', this._onUp);
     this.el.removeEventListener('contextmenu', this._onCtx);

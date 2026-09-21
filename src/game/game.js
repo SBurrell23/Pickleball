@@ -8,7 +8,7 @@ import {
   MODE, createSwingState, beginSwing, updateSwing, releaseSwing, sweetZone, classifyShot,
 } from './swing.js';
 import { buildBall, buildBallShadow, animateCrowd } from '../render/assets.js';
-import { buildCharacter, animateCharacter } from '../render/character.js';
+import { buildCharacter, animateCharacter, paddleWorldPos } from '../render/character.js';
 import { Effects } from '../render/fx.js';
 import { SnapshotBuffer, ErrorCorrector } from '../net/interp.js';
 import { SNAPSHOT_HZ } from '../net/net.js';
@@ -19,6 +19,9 @@ const MAX_CATCHUP = 5;
 // How close to the kitchen you must be for the reaction meter to take over
 // from the power meter.
 const KITCHEN_BAND = COURT.KITCHEN + 0.85;
+
+// Charge sparks tint toward this as the meter fills.
+const SPARK_HOT = new THREE.Color(0xfff3a8);
 
 export class Game {
   constructor({ view, hud, audio, input, settings, net, mode, court }) {
@@ -45,6 +48,9 @@ export class Game {
     this.swing = createSwingState();
     this.aim = new THREE.Vector3(0, 0.02, 0);
     this.aimWorld = new THREE.Vector3();
+    this._paddlePos = new THREE.Vector3();
+    this._sparkColor = new THREE.Color();
+    this.sparkAccum = [];
     this.lastNeedleDir = 1;
 
     this.snapBuf = new SnapshotBuffer();
@@ -520,9 +526,9 @@ export class Game {
       const rig = this.rigs[i];
       rig.position.set(p.x, 0, p.z);
       rig.rotation.y = p.facing;
-      const stepped = animateCharacter(rig, p, dt, time);
-      if (stepped && i === this.myIdx) this.audio.footstep();
-      if (stepped && Math.hypot(p.vx, p.vz) > 4.5) this.fx.dustPuff(p.x, p.z, 0.5);
+      const glide = animateCharacter(rig, p, dt, time);
+      if (glide && Math.hypot(p.vx, p.vz) > 4.0) this.fx.dustPuff(p.x, p.z, 0.45);
+      this.chargeSparks(p, rig, i, dt);
     }
 
     const b = sim.ball;
@@ -557,10 +563,33 @@ export class Game {
       animateCrowd(this.crowd, time, Math.min(1, this.fx.shake));
     }
 
-    this.fx.update(dt, this.view.camera);
+    this.fx.update(dt, this.view.camera, this.view.renderer.domElement.height);
     this.view.updateCamera(me.x, me.z, dt, this.fx);
 
     this.updateHud(dt);
+  }
+
+  // Sparks stream off a paddle that is winding up. The rate and colour track
+  // the charge, so from across the court you can see how loaded a shot is.
+  chargeSparks(p, rig, i, dt) {
+    if (!p.charging || p.chargeVis <= 0.04) { this.sparkAccum[i] = 0; return; }
+    const charge = Math.min(1, p.chargeVis);
+    this.sparkAccum[i] = (this.sparkAccum[i] || 0) + dt * (8 + charge * 46);
+    if (this.sparkAccum[i] < 1) return;
+    const ch = getCharacter(p.charId);
+    this._sparkColor.set(ch.colors.primary).lerp(SPARK_HOT, 0.35 + charge * 0.6);
+    paddleWorldPos(rig, this._paddlePos);
+    while (this.sparkAccum[i] >= 1) {
+      this.sparkAccum[i] -= 1;
+      this.fx.burst(this._paddlePos.x, this._paddlePos.y, this._paddlePos.z, 1, {
+        color: this._sparkColor,
+        spread: 0.3 + charge * 0.8,
+        life: 0.28 + charge * 0.2,
+        gravity: -1.6,
+        size: 0.9 + charge * 1.5,
+        up: 0.7,
+      });
+    }
   }
 
   updateHud(dt) {

@@ -2,6 +2,12 @@ import * as THREE from '../../vendor/three.module.js';
 import { COURT } from '../game/constants.js';
 import { HORIZON } from './assets.js';
 
+// Fixed: the camera framing and the mouse-to-court aim mapping are tuned
+// around this, so it is not a setting. It is narrow on purpose -- a tighter
+// lens from further back fills the screen with court without tipping the view
+// so far over that depth stops reading.
+const FOV = 38;
+
 // Renderer + scene + camera. Antialiasing mode is a context-creation choice,
 // so switching it rebuilds the WebGL context; everything else applies live.
 
@@ -68,7 +74,7 @@ export class View {
     this.scene.fog = new THREE.Fog(HORIZON, 150, 620);
 
     // Far enough to contain the sky dome.
-    this.camera = new THREE.PerspectiveCamera(settings.get('fov'), 1, 0.1, 2200);
+    this.camera = new THREE.PerspectiveCamera(FOV, 1, 0.1, 2200);
     this.camPos = new THREE.Vector3(0, 5, -12);
     this.camLook = new THREE.Vector3(0, 0.8, 0);
     this.side = -1;
@@ -197,7 +203,7 @@ export class View {
     this.renderer.setPixelRatio(dpr);
     this.renderer.setSize(w, h, true);
     this.camera.aspect = w / h;
-    this.camera.fov = this.settings.get('fov');
+    this.camera.fov = FOV;
     this.camera.updateProjectionMatrix();
     if (this.fxaaTarget) {
       const pw = Math.max(1, Math.floor(w * dpr));
@@ -211,7 +217,7 @@ export class View {
   onSettingChanged(key) {
     if (key === 'antialias') { this.createRenderer(); return true; }
     if (key === 'shadows') this.applyShadowSettings();
-    if (key === 'renderScale' || key === 'fov') this.resize();
+    if (key === 'renderScale') this.resize();
     if (key === 'fpsCap') this.lastFrame = 0;
     return false;
   }
@@ -226,15 +232,15 @@ export class View {
     let px, py, pz, lx, ly, lz;
 
     if (mode === 'broadcast') {
-      px = 0; py = 9.4; pz = s * (COURT.HALF_L + 7.4);
-      lx = 0; ly = 0.6; lz = -s * 0.6;
+      px = 0; py = 11.5; pz = s * (COURT.HALF_L + 7.0);
+      lx = 0; ly = 0.4; lz = 0;
     } else if (mode === 'fixed') {
-      px = 0; py = 5.6; pz = s * (COURT.HALF_L + 6.6);
-      lx = 0; ly = 0.75; lz = -s * 1.1;
+      px = 0; py = 7.5; pz = s * (COURT.HALF_L + 7.9);
+      lx = 0; ly = 0.5; lz = s * 3.2;
     } else {
       // Follow: drifts with the player so the near court never leaves frame.
-      px = focusX * 0.42; py = 5.35; pz = s * (COURT.HALF_L + 6.3) + focusZ * 0.10;
-      lx = focusX * 0.20; ly = 0.75; lz = -s * 1.1;
+      px = focusX * 0.34; py = 7.5; pz = s * (COURT.HALF_L + 7.9) + focusZ * 0.06;
+      lx = focusX * 0.16; ly = 0.5; lz = s * 3.2;
     }
 
     const k = 1 - Math.exp(-7.5 * dt);

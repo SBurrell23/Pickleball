@@ -1,6 +1,7 @@
 import { CHARACTERS, getCharacter } from '../game/characters.js';
 import { DEFAULTS } from '../core/settings.js';
 import { drawPortrait } from './portrait.js';
+import { CURSOR_STYLES, CURSOR_COLORS, drawReticle } from './reticle.js';
 
 const STAT_LABELS = {
   speed: 'Speed', power: 'Power', reach: 'Reach', control: 'Control', charge: 'Charge',
@@ -26,8 +27,6 @@ const SCHEMA = {
     { key: 'crowd3d', label: 'Animated crowd', type: 'toggle' },
     { key: 'shake', label: 'Screen shake', type: 'range',
       min: 0, max: 1, step: 0.05, fmt: (v) => (v === 0 ? 'Off' : Math.round(v * 100) + '%') },
-    { key: 'fov', label: 'Field of view', type: 'range',
-      min: 35, max: 75, step: 1, fmt: (v) => v + '°' },
     { key: 'showFps', label: 'Show FPS counter', type: 'toggle' },
   ],
   Audio: [
@@ -48,7 +47,12 @@ const SCHEMA = {
       options: [['follow', 'Follow'], ['fixed', 'Fixed'], ['broadcast', 'Broadcast']] },
     { key: 'aimSensitivity', label: 'Aim sensitivity', type: 'range',
       min: 0.3, max: 2.5, step: 0.05, fmt: (v) => v.toFixed(2) + 'x' },
-    { key: 'showReticle', label: 'Show crosshair', type: 'toggle' },
+    { key: 'cursorStyle', label: 'Cursor', type: 'select', options: CURSOR_STYLES,
+      note: 'The system cursor is hidden during a match -- this is what you aim with.' },
+    { key: 'cursorColor', label: 'Cursor colour', type: 'select', options: CURSOR_COLORS },
+    { key: 'cursorScale', label: 'Cursor size', type: 'range',
+      min: 0.7, max: 1.8, step: 0.05, fmt: (v) => Math.round(v * 100) + '%' },
+    { type: 'cursorPreview', label: 'Preview' },
     { key: 'showLanding', label: 'Show landing marker', type: 'toggle' },
     { key: 'colorblind', label: 'Colour mode', type: 'select',
       options: [['off', 'Default'], ['deuter', 'Deuteranopia'], ['protan', 'Protanopia'],
@@ -235,13 +239,37 @@ export class Menus {
           out.textContent = row && row.fmt ? row.fmt(this.settings.get(key)) : String(this.settings.get(key));
         }
       };
-      input.addEventListener('input', handler);
-      input.addEventListener('change', handler);
+      const withPreview = () => { handler(); this.drawCursorPreview(); };
+      input.addEventListener('input', withPreview);
+      input.addEventListener('change', withPreview);
     }
+    this.drawCursorPreview();
     const code = this.el.querySelector('#roomCode');
     if (code) {
       code.addEventListener('keydown', (e) => { if (e.key === 'Enter') this.doJoin(); });
       code.focus();
+    }
+  }
+
+  // Draw the reticle over bands of the colours it has to survive on court:
+  // blue surface, teal kitchen, white line and green surround.
+  drawCursorPreview() {
+    const cv = this.el.querySelector('canvas[data-cursor-preview]');
+    if (!cv) return;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    const w = cv.clientWidth || 224, h = cv.clientHeight || 76;
+    cv.width = Math.round(w * dpr);
+    cv.height = Math.round(h * dpr);
+    const g = cv.getContext('2d');
+    g.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const bands = ['#2f7fc4', '#1fa091', '#f4f7fb', '#3f7f63'];
+    const bw = w / bands.length;
+    bands.forEach((col, i) => { g.fillStyle = col; g.fillRect(i * bw, 0, bw + 1, h); });
+    for (let i = 0; i < bands.length; i++) {
+      drawReticle(g, (i + 0.5) * bw, h / 2,
+        this.settings.get('cursorStyle'),
+        this.settings.get('cursorColor'),
+        this.settings.get('cursorScale'));
     }
   }
 
@@ -433,6 +461,15 @@ export class Menus {
   }
 
   renderRow(row) {
+    if (row.type === 'cursorPreview') {
+      return `<div class="set-row">
+        <div class="set-label"><span>${row.label}</span>
+          <small>Exactly what you will see on court.</small></div>
+        <div class="set-control">
+          <canvas class="cursor-preview" data-cursor-preview width="224" height="76"></canvas>
+        </div>
+      </div>`;
+    }
     const v = this.settings.get(row.key);
     let control = '';
     if (row.type === 'toggle') {

@@ -1,4 +1,5 @@
 import { MODE, sweetZone } from '../game/swing.js';
+import { drawReticle } from './reticle.js';
 
 // The swing meter is the thing the player actually looks at, so it is drawn on
 // its own canvas rather than as DOM: the sweet zone has to line up with what
@@ -161,7 +162,7 @@ export class Hud {
     const W = isDrive ? Math.min(420, this.w * 0.42) : Math.min(300, this.w * 0.30);
     const H = isDrive ? 26 : 30;
     const x = (this.w - W) / 2;
-    const y = this.h - (isDrive ? 118 : 122);
+    const y = this.h - (isDrive ? 128 : 132);
     const r = H / 2;
 
     // Track
@@ -257,7 +258,7 @@ export class Hud {
     if (!p) return;
     const pad = 26;
     const w = 168, h = 9;
-    const x = pad, y = this.h - pad - 30;
+    const x = pad, y = this.h - pad - 34;
 
     // Stamina
     g.fillStyle = 'rgba(16,32,44,0.85)';
@@ -295,20 +296,14 @@ export class Hud {
     g.fillText(sp >= 1 ? 'STAR READY  [E]' : 'STAR', x, y2 + h + 12);
   }
 
+  // The OS cursor is hidden over the canvas, so this is the only pointer the
+  // player has -- it always draws.
   _drawCrosshair(g, mouse) {
-    if (!mouse || !this.settings.get('showReticle')) return;
-    const { x, y } = mouse;
-    g.save();
-    g.strokeStyle = 'rgba(255,255,255,0.55)';
-    g.lineWidth = 1.5;
-    g.beginPath();
-    g.arc(x, y, 7, 0, Math.PI * 2);
-    g.moveTo(x - 13, y); g.lineTo(x - 4, y);
-    g.moveTo(x + 4, y); g.lineTo(x + 13, y);
-    g.moveTo(x, y - 13); g.lineTo(x, y - 4);
-    g.moveTo(x, y + 4); g.lineTo(x, y + 13);
-    g.stroke();
-    g.restore();
+    if (!mouse || !mouse.inside) return;
+    drawReticle(g, mouse.x, mouse.y,
+      this.settings.get('cursorStyle'),
+      this.settings.get('cursorColor'),
+      this.settings.get('cursorScale'));
   }
 
   _roundRect(g, x, y, w, h, r) {

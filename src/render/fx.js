@@ -16,6 +16,29 @@ function sparkTexture() {
   return new THREE.CanvasTexture(c);
 }
 
+// PointsMaterial has no per-point size, so every effect's `size` option was
+// silently doing nothing. This is the same thing three does internally, plus
+// the size attribute.
+const POINT_VERT = `
+attribute float size;
+uniform float uScale;
+varying vec3 vCol;
+void main() {
+  vCol = color;
+  vec4 mv = modelViewMatrix * vec4(position, 1.0);
+  gl_PointSize = size * (uScale / max(0.001, -mv.z));
+  gl_Position = projectionMatrix * mv;
+}`;
+
+const POINT_FRAG = `
+uniform sampler2D map;
+varying vec3 vCol;
+void main() {
+  vec4 t = texture2D(map, gl_PointCoord);
+  if (t.a < 0.01) discard;
+  gl_FragColor = vec4(vCol, 1.0) * t;
+}`;
+
 const MAX_PARTICLES = 520;
 const TRAIL_SEGMENTS = 26;
 const MAX_RINGS = 14;
@@ -35,9 +58,17 @@ export class Effects {
     geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
     geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
     geo.setAttribute('size', new THREE.BufferAttribute(siz, 1));
-    this.pMat = new THREE.PointsMaterial({
-      size: 0.14, map: sparkTexture(), transparent: true, depthWrite: false,
-      blending: THREE.AdditiveBlending, vertexColors: true, sizeAttenuation: true,
+    this.pMat = new THREE.ShaderMaterial({
+      uniforms: {
+        map: { value: sparkTexture() },
+        uScale: { value: 400 },
+      },
+      vertexShader: POINT_VERT,
+      fragmentShader: POINT_FRAG,
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      vertexColors: true,
     });
     this.points = new THREE.Points(geo, this.pMat);
     this.points.frustumCulled = false;
@@ -135,7 +166,7 @@ export class Effects {
       p.g = opts.gravity ?? -11;
       p.life = 0;
       p.max = (opts.life ?? 0.5) * (0.6 + Math.random() * 0.7);
-      p.size = (opts.size ?? 1) * (0.6 + Math.random() * 0.8);
+      p.size = 0.15 * (opts.size ?? 1) * (0.6 + Math.random() * 0.8);
       const c = opts.color ?? new THREE.Color(0xffffff);
       p.r = c.r; p.gg = c.g; p.b = c.b;
     }
@@ -275,16 +306,21 @@ export class Effects {
     this.trail.material.opacity = 0.55;
   }
 
-  update(dt, camera) {
+  // `viewportH` is the drawing-buffer height; point size in pixels depends on
+  // it, so a resolution-scale change must not change how big sparks look.
+  update(dt, camera, viewportH) {
     this.time += dt;
+    if (viewportH) this.pMat.uniforms.uScale.value = viewportH * 0.5;
     const geo = this.points.geometry;
     const pos = geo.attributes.position.array;
     const col = geo.attributes.color.array;
+    const siz = geo.attributes.size.array;
 
     for (let i = 0; i < MAX_PARTICLES; i++) {
       const p = this.particles[i];
       if (p.life >= p.max) {
         pos[i * 3 + 1] = -500;
+        siz[i] = 0;
         continue;
       }
       p.life += dt;
@@ -296,9 +332,12 @@ export class Effects {
       col[i * 3] = (p.r ?? 1) * k;
       col[i * 3 + 1] = (p.gg ?? 1) * k;
       col[i * 3 + 2] = (p.b ?? 1) * k;
+      // Shrink as they die, so they wink out instead of vanishing mid-size.
+      siz[i] = p.size * (0.45 + k * 0.55);
     }
     geo.attributes.position.needsUpdate = true;
     geo.attributes.color.needsUpdate = true;
+    geo.attributes.size.needsUpdate = true;
 
     for (const r of this.rings) {
       if (!r.mesh.visible) continue;

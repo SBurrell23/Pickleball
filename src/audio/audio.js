@@ -1,5 +1,8 @@
-// Every sound in the game is synthesized here -- no audio files anywhere.
+// Every sound effect in the game is synthesized here; the only audio file is
+// the background music track.
 // Layout: sources -> bus (sfx / music / ambience) -> master -> limiter -> out.
+
+const MUSIC_TRACK = 'assets/audio/arcade-fun-time.mp3';
 
 export class AudioEngine {
   constructor(settings) {
@@ -12,6 +15,7 @@ export class AudioEngine {
     this.nextNoteTime = 0;
     this.bpm = 104;
     this.chargeVoice = null;
+    this.musicEl = null;
     this.suspendedByBlur = false;
   }
 
@@ -211,11 +215,6 @@ export class AudioEngine {
     });
   }
 
-  footstep() {
-    if (!this.ready) return;
-    this._noise(this.sfxBus, { dur: 0.05, type: 'bandpass', freq: 900, q: 2, gain: 0.05 });
-  }
-
   // Rising tone while the power bar fills; pitch tracks the bar exactly so you
   // can time the release by ear as well as by eye.
   chargeStart() {
@@ -337,15 +336,54 @@ export class AudioEngine {
 
   // ---- music -------------------------------------------------------------
 
+  // The soundtrack is a real file, streamed through a media element rather than
+  // decoded with decodeAudioData: it is nine minutes long, and decoding it to
+  // PCM would sit on a couple of hundred megabytes of memory for no benefit.
+  // Routing it through the music bus keeps the volume slider working on it.
   startMusic() {
+    if (!this.ready || this.musicEl || this.musicTimer) return;
+    let el;
+    try {
+      el = new Audio(MUSIC_TRACK);
+      el.loop = true;
+      el.preload = 'auto';
+      el.crossOrigin = 'anonymous';
+      const node = this.ctx.createMediaElementSource(el);
+      node.connect(this.musicBus);
+    } catch {
+      this._startSynthMusic();
+      return;
+    }
+    this.musicEl = el;
+    // If the file cannot be fetched or played, fall back to the synthesized
+    // loop so the game is never silent.
+    el.addEventListener('error', () => this._fallbackToSynth(), { once: true });
+    const played = el.play();
+    if (played && played.catch) played.catch(() => this._fallbackToSynth());
+  }
+
+  _fallbackToSynth() {
+    if (this.musicEl) {
+      try { this.musicEl.pause(); } catch { /* already gone */ }
+      this.musicEl = null;
+    }
+    this._startSynthMusic();
+  }
+
+  stopMusic() {
+    if (this.musicEl) {
+      try { this.musicEl.pause(); } catch { /* already gone */ }
+      this.musicEl = null;
+    }
+    if (this.musicTimer) { clearInterval(this.musicTimer); this.musicTimer = null; }
+  }
+
+  // Fallback only: the procedural loop that shipped before the track existed.
+  _startSynthMusic() {
     if (!this.ready || this.musicTimer) return;
     this.step = 0;
     this.nextNoteTime = this.ctx.currentTime + 0.1;
     this.musicTimer = setInterval(() => this._schedule(), 25);
-  }
-
-  stopMusic() {
-    if (this.musicTimer) { clearInterval(this.musicTimer); this.musicTimer = null; }
   }
 
   _schedule() {
