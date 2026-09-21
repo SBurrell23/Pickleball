@@ -5,7 +5,8 @@ import { getCharacter, swingTuning } from './characters.js';
 import { createBotState, updateBot } from './ai.js';
 import { predictLanding } from './ballistics.js';
 import {
-  MODE, createSwingState, beginSwing, updateSwing, releaseSwing, sweetZone, classifyShot,
+  MODE, isBar, createSwingState, beginSwing, updateSwing, releaseSwing,
+  sweetZone, classifyShot,
 } from './swing.js';
 import { buildBall, buildBallShadow, animateCrowd } from '../render/assets.js';
 import { buildCharacter, animateCharacter, paddleWorldPos } from '../render/character.js';
@@ -46,6 +47,7 @@ export class Game {
     this.stats = { hits: 0, perfect: 0, longest: 0, faults: 0 };
 
     this.swing = createSwingState();
+    this.swingButton = 0;
     this.aim = new THREE.Vector3(0, 0.02, 0);
     this.aimWorld = new THREE.Vector3();
     this._paddlePos = new THREE.Vector3();
@@ -171,17 +173,27 @@ export class Game {
   }
 
   onPress(button) {
-    if (button !== 0) return;
+    if (button !== 0 && button !== 2) return;
     if (!this.canStartSwing()) return;
     if (this.swing.active) return;
-    // Serving always uses the power meter -- there is no incoming ball to react to.
-    const mode = this.sim.phase === PHASE.SERVE ? MODE.DRIVE : this.currentSwingMode();
+    let mode;
+    if (button === 2) {
+      // Right button is always the short bar, wherever you are standing: the
+      // fast option when a ball arrives with no time to fill a drive.
+      mode = MODE.QUICK;
+    } else if (this.sim.phase === PHASE.SERVE) {
+      // Serving has no incoming ball to react to, so it is always the bar.
+      mode = MODE.DRIVE;
+    } else {
+      mode = this.currentSwingMode();
+    }
+    this.swingButton = button;
     beginSwing(this.swing, mode, this.myTuning);
     this.audio.chargeStart();
   }
 
   onRelease(button) {
-    if (button !== 0 || !this.swing.active) return;
+    if (!this.swing.active || button !== this.swingButton) return;
     const tune = this.myTuning;
     const assist = this.settings.get('meterAssist');
     const res = releaseSwing(this.swing, tune, assist);
@@ -247,7 +259,7 @@ export class Game {
       ax: this.aim.x, az: this.aim.z,
       dash: this.input.dash,
       charging: this.swing.active,
-      chargeVis: this.swing.mode === MODE.DRIVE ? this.swing.t : this.swing.needle,
+      chargeVis: isBar(this.swing.mode) ? this.swing.t : this.swing.needle,
     };
   }
 
@@ -260,7 +272,7 @@ export class Game {
     if (this.swing.active && !this.paused) {
       updateSwing(this.swing, dt, this.myTuning);
       const zone = sweetZone(this.swing, this.myTuning, this.settings.get('meterAssist'));
-      const pos = this.swing.mode === MODE.DRIVE ? this.swing.t : this.swing.needle;
+      const pos = isBar(this.swing.mode) ? this.swing.t : this.swing.needle;
       const inSweet = Math.abs(pos - zone.center) <= zone.half;
       this.audio.chargeUpdate(Math.min(1, this.swing.t), inSweet);
       if (this.swing.mode === MODE.DINK && this.swing.dir !== this.lastNeedleDir) {
@@ -268,8 +280,8 @@ export class Game {
         this.audio.needleTick(true);
       }
       // An overcooked drive fires itself so the charge cannot be held forever.
-      if (this.swing.mode === MODE.DRIVE && this.swing.overcooked && this.swing.t >= 1.26) {
-        this.onRelease(0);
+      if (isBar(this.swing.mode) && this.swing.overcooked && this.swing.t >= 1.26) {
+        this.onRelease(this.swingButton);
       }
     }
 
@@ -401,7 +413,7 @@ export class Game {
     me.swingT = this.pred.swingT;
     me.swingSide = this.pred.swingSide;
     me.charging = this.swing.active;
-    me.chargeVis = this.swing.mode === MODE.DRIVE ? this.swing.t : this.swing.needle;
+    me.chargeVis = isBar(this.swing.mode) ? this.swing.t : this.swing.needle;
   }
 
   onSnapshot(msg) {
@@ -638,8 +650,11 @@ export class Game {
 
     let shotLabel = null;
     if (this.swing.active) {
-      if (this.sim.phase === PHASE.SERVE) shotLabel = 'SERVE';
-      else if (this.swing.mode === MODE.DINK) {
+      if (this.sim.phase === PHASE.SERVE) {
+        shotLabel = this.swing.mode === MODE.QUICK ? 'SAFE SERVE' : 'SERVE';
+      } else if (this.swing.mode === MODE.QUICK) {
+        shotLabel = this.input.soft ? 'QUICK — DROP' : 'QUICK — DINK';
+      } else if (this.swing.mode === MODE.DINK) {
         shotLabel = this.input.soft ? 'DROP — REACTION' : 'KITCHEN — REACTION';
       } else {
         shotLabel = this.input.soft ? 'LOB — POWER' : 'DRIVE — POWER';

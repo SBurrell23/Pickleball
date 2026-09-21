@@ -65,9 +65,10 @@ function pct(v) { return Math.round(v * 100) + '%'; }
 const CONTROLS = [
   ['W A S D', 'Move. W is always toward the net.'],
   ['Mouse', 'Aim. The marker on the far court is where the ball will land.'],
-  ['Hold Left Click', 'Wind up. Which meter you get depends on where you are standing.'],
-  ['Release Left Click', 'Swing. Land the marker in the sweet spot.'],
-  ['Right Click / Space', 'Hold while swinging for a soft shot (lob from deep, drop at the net).'],
+  ['Hold Left Click', 'Full power bar. All the pace you can get, but the sweet spot is a long way up.'],
+  ['Hold Right Click', 'Half-length bar. Sweet spot in half the time — but it is only ever a dink.'],
+  ['Release', 'Swing. Stop the marker in the sweet spot.'],
+  ['Space', 'Hold while swinging for a softer, loopier ball.'],
   ['Shift', 'Dash. Costs stamina.'],
   ['Esc', 'Pause.'],
 ];
@@ -497,13 +498,18 @@ export class Menus {
     return this.frame('How to play', `
       <table class="controls">${CONTROLS.map(
         ([k, v]) => `<tr><th>${k}</th><td>${v}</td></tr>`).join('')}</table>
-      <h3>The two meters</h3>
-      <p>From the back of the court you get the <b>power bar</b>: it fills while you hold,
-      and the sweet spot sits near the top. You want maximum power <i>and</i> a release inside
-      the band, so it is a test of nerve. Hold too long and the shot overcooks into a floater.</p>
-      <p>At the kitchen line you get the <b>reaction bar</b>: a needle sweeps back and forth and
-      the sweet spot moves every time. Power is mostly fixed, so this one is purely about
-      reacting in time.</p>
+      <h3>The meters</h3>
+      <p><b>Left click</b> is the <b>power bar</b>: it fills while you hold, and the sweet spot
+      sits near the top. You want maximum power <i>and</i> a release inside the band, so it is a
+      test of nerve. Hold too long and the shot overcooks into a floater.</p>
+      <p><b>Right click</b> is the <b>short bar</b> — the same bar at half the length, so its
+      sweet spot arrives in half the time. The catch is that it can only ever produce a dink.
+      That is the real decision in this game: when a ball comes back too fast to fill a drive,
+      you can force a mistimed big shot and get punished, or take a clean quick dink and stay
+      in the rally.</p>
+      <p>Standing at the kitchen line swaps left click for the <b>reaction bar</b>: a needle
+      sweeps back and forth and the sweet spot moves every time. Power is fixed there, so it is
+      purely about reacting in time.</p>
       <h3>Rules worth knowing</h3>
       <ul class="rules">
         <li><b>The kitchen</b> is the coloured zone by the net. You may stand in it, but you may

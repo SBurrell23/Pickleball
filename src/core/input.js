@@ -108,7 +108,8 @@ export class Input {
   down(code) { return this.keys.has(code); }
 
   get dash() { return this.keys.has('ShiftLeft') || this.keys.has('ShiftRight'); }
-  get soft() { return this.secondaryDown || this.keys.has('Space'); }
+  // Right button is its own swing now, so only Space softens a shot.
+  get soft() { return this.keys.has('Space'); }
 
   releaseAll() {
     this.keys.clear();

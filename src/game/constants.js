@@ -69,6 +69,9 @@ export const SWING = {
   DRIVE_SWEET_LO: 0.775,    // sweet band on the power bar
   DRIVE_SWEET_HI: 0.945,
   DRIVE_PERFECT_W: 0.055,   // perfect band, centred in the sweet zone
+  QUICK_CHARGE: 0.38,       // short bar: reaches its sweet spot in about half
+                            // the time of a full drive
+  QUICK_POWER: 0.50,        // and can never hit anywhere near a drive's pace
   DINK_CYCLE: 0.60,         // seconds for the needle to cross the bar and back
   DINK_SWEET_W: 0.185,      // width of the sweet zone (0..1 of the bar)
   DINK_PERFECT_W: 0.072,

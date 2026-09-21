@@ -20,27 +20,33 @@ music track.
 | --- | --- |
 | `W` `A` `S` `D` | Move. `W` is always toward the net, whichever side you are on. |
 | Mouse | Aim. The reticle replaces the system cursor; the marker on the far court is where the ball will actually land. |
-| Hold left click | Wind up. Which meter you get depends on where you are standing. |
-| Release left click | Swing. Land the marker in the sweet spot. |
-| Right click / `Space` | Hold while swinging for a soft shot — a lob from deep, a drop at the net. |
+| Hold left click | Full power bar. All the pace you can get, but the sweet spot is a long way up. |
+| Hold right click | Half-length bar. Sweet spot in half the time — but it is only ever a dink. |
+| Release | Swing. Stop the marker in the sweet spot. |
+| `Space` | Hold while swinging for a softer, loopier ball. |
 | `Shift` | Dash. Costs stamina. |
 | `Esc` | Pause. |
 
-## The two meters
+## The meters
 
-Where you stand decides which mini-game you play, and the two demand different
-things from you.
-
-**Power bar (back court).** A bar fills while you hold the button, with a sweet
+**Power bar — left click.** A bar fills while you hold the button, with a sweet
 band near the top. You want maximum power *and* a release inside the band, so
 it is a test of nerve as much as timing — every extra frame you hold is more
 pace and more risk. Hold past the end and the swing overcooks into a floater
 that the opponent will punish.
 
-**Reaction bar (at the kitchen).** A needle sweeps back and forth across a short
-bar and the sweet spot is placed somewhere new every single swing. Power is
-mostly fixed here, so there is nothing to weigh up: you either react in time or
-you do not.
+**Short bar — right click.** The same bar at half the length, so its sweet spot
+arrives in half the time. The catch is a hard ceiling on pace: it only ever
+produces a dink. This is the decision the game is actually built around — when
+a ball comes back too fast to fill a drive, you can force a mistimed big shot
+and get punished for it, or take a clean quick dink and stay in the rally. The
+full bar is drawn as a dashed ghost behind the short one so the trade is visible
+while you hold it.
+
+**Reaction bar — at the kitchen.** Standing at the kitchen line swaps left click
+for a needle that sweeps back and forth, with the sweet spot placed somewhere
+new every single swing. Power is fixed there, so there is nothing to weigh up:
+you either react in time or you do not.
 
 Timing feeds straight back into the physics. A perfect strike goes where the
 reticle says; a mistimed one loses pace, scatters wide, and — the part that

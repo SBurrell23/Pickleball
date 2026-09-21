@@ -2,7 +2,7 @@ import { COURT, PLAY, SWING, SHOT } from './constants.js';
 import { PHASE, SWINGSTATE } from './sim.js';
 import { getCharacter, swingTuning } from './characters.js';
 import {
-  MODE, createSwingState, beginSwing, updateSwing, releaseSwing, classifyShot,
+  MODE, isBar, createSwingState, beginSwing, updateSwing, releaseSwing, classifyShot,
 } from './swing.js';
 
 // The paddle goes live SWING_WINDUP after release and stays live for
@@ -263,7 +263,7 @@ export function updateBot(sim, p, st, dt) {
   if (st.sw.active) {
     updateSwing(st.sw, dt, tune);
     inp.charging = true;
-    inp.chargeVis = st.sw.mode === MODE.DRIVE ? st.sw.t : st.sw.needle;
+    inp.chargeVis = isBar(st.sw.mode) ? st.sw.t : st.sw.needle;
 
     if (!arrival) {
       // The read changed -- abandon rather than swing at nothing.
@@ -272,7 +272,7 @@ export function updateBot(sim, p, st, dt) {
     }
     if (volleyIllegal(sim, p)) {
       // Hold: contacting the ball right now would hand over the point.
-      if (st.sw.mode === MODE.DRIVE && st.sw.overcooked) st.sw.active = false;
+      if (isBar(st.sw.mode) && st.sw.overcooked) st.sw.active = false;
       return inp;
     }
     if (arrival.t <= CONTACT_LEAD || st.sw.overcooked) fireSwing(sim, p, st, tune);
@@ -284,14 +284,33 @@ export function updateBot(sim, p, st, dt) {
     if (arrival.bounced === 0 && (sim.inKitchen(p) || sim.ball.shotCount < 3)) return inp;
 
     const atKitchen = Math.abs(p.z) < COURT.KITCHEN + 0.85;
-    const mode = atKitchen ? MODE.DINK : MODE.DRIVE;
     st.startBias = (Math.random() * 2 - 1) * ((1 - d) * 0.32 + 0.012);
 
     // Begin so that the bar reaches the sweet band exactly as the ball arrives.
     // Starting early or late is what costs the bot its timing grade.
-    const chargeNeeded = mode === MODE.DRIVE
-      ? ((0.86 + st.startBias) * SWING.CHARGE_TIME) / tune.chargeRate
-      : 0.42;
+    const aim = 0.86 + st.startBias;
+    const driveNeed = (aim * SWING.CHARGE_TIME) / tune.chargeRate + CONTACT_LEAD;
+    const quickNeed = (aim * SWING.QUICK_CHARGE) / tune.chargeRate + CONTACT_LEAD;
+
+    let mode;
+    if (atKitchen) {
+      mode = MODE.DINK;
+    } else if (arrival.t > driveNeed) {
+      // Plenty of warning. Occasionally take the short bar anyway, as a drop.
+      if (d > 0.45 && Math.random() < 0.14) mode = MODE.QUICK;
+      else return inp; // wait; the drive starts when the time is right
+    } else if (arrival.t >= driveNeed - 0.06) {
+      // This is the frame the drive window opens on. Take it.
+      mode = MODE.DRIVE;
+    } else {
+      // The drive window has already gone -- the ball came too fast. A good bot
+      // takes the short bar and lands a clean dink rather than forcing a
+      // mistimed big shot, which is the choice the mechanic offers the player.
+      mode = d > 0.4 ? MODE.QUICK : MODE.DRIVE;
+    }
+
+    const chargeNeeded = mode === MODE.DINK ? 0.42
+      : (mode === MODE.QUICK ? quickNeed : driveNeed) - CONTACT_LEAD;
     if (arrival.t <= chargeNeeded + CONTACT_LEAD) {
       beginSwing(st.sw, mode, tune);
       st.mode = mode;
