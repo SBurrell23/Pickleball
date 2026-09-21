@@ -1,4 +1,4 @@
-import { MODE, isBar, sweetZone } from '../game/swing.js';
+import { MODE, sweetZone } from '../game/swing.js';
 import { drawReticle } from './reticle.js';
 
 // The swing meter is the thing the player actually looks at, so it is drawn on
@@ -158,15 +158,14 @@ export class Hud {
     const zone = sweetZone(sw, tune, assist);
     const pal = this._palette();
 
-    const bar = isBar(sw.mode);
     const quick = sw.mode === MODE.QUICK;
     // The quick bar is literally half the length of the drive bar. That is the
     // whole point of it, so it has to look like it.
     const full = Math.min(420, this.w * 0.42);
-    const W = quick ? full * 0.5 : bar ? full : Math.min(300, this.w * 0.30);
-    const H = bar ? 26 : 30;
+    const W = quick ? full * 0.5 : full;
+    const H = 26;
     const x = (this.w - W) / 2;
-    const y = this.h - (bar ? 128 : 132);
+    const y = this.h - 128;
     const r = H / 2;
 
     // Track
@@ -200,7 +199,7 @@ export class Hud {
     g.fillStyle = this._alpha(pal.perfect, 0.92);
     g.fillRect(x + pl * W, y, (pr - pl) * W, H);
 
-    if (bar) {
+    {
       // Power fill up to the current bar position. The quick bar is tinted
       // teal so the two modes are never mistaken for each other mid-rally.
       const t = Math.min(1.26, sw.t);
@@ -227,7 +226,7 @@ export class Hud {
     g.restore();
 
     // Needle / release marker
-    const pos = bar ? Math.min(1.0, sw.t) : sw.needle;
+    const pos = Math.min(1.0, sw.t);
     const nx = x + pos * W;
     const inSweet = Math.abs(pos - zone.center) <= zone.half;
     const inPerfect = Math.abs(pos - zone.center) <= zone.perfect;
@@ -253,7 +252,7 @@ export class Hud {
     g.textAlign = 'center';
     g.fillStyle = 'rgba(255,255,255,0.95)';
     g.fillText(
-      state.shotLabel || (bar ? 'POWER' : 'REACTION'),
+      state.shotLabel || 'POWER',
       x + W / 2, y - 12
     );
 
@@ -270,7 +269,7 @@ export class Hud {
       g.restore();
     }
 
-    if (bar && sw.t > 1) {
+    if (sw.t > 1) {
       g.fillStyle = pal.bad;
       g.fillText('OVERCOOKED', x + W / 2, y + H + 22);
     }

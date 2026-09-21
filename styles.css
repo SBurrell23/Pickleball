@@ -392,9 +392,11 @@ button.big span { font-size: 12px; color: var(--ink-soft); font-weight: 600; let
 .char-layout { display: grid; grid-template-columns: 1fr 300px; gap: 24px; }
 @media (max-width: 800px) { .char-layout { grid-template-columns: 1fr; } }
 
+/* Always 2 rows of 3 -- auto-fill gave 4 and 2 on a wide screen, which looks
+   like a mistake rather than a layout. */
 .char-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(124px, 1fr));
+  grid-template-columns: repeat(3, 1fr);
   gap: 12px;
 }
 

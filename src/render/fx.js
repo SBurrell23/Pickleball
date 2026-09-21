@@ -123,23 +123,6 @@ export class Effects {
     this.marker.renderOrder = 3;
     scene.add(this.marker);
 
-    // ---- service box target ----
-    // A thin dashed outline, not a tinted panel: it marks the legal area
-    // without recolouring the court underneath it. Built at true size so the
-    // dashes stay even -- scaling a unit quad would stretch them.
-    this.serveBox = new THREE.LineSegments(
-      new THREE.BufferGeometry(),
-      new THREE.LineDashedMaterial({
-        color: 0xe4ef3f, dashSize: 0.26, gapSize: 0.20,
-        transparent: true, opacity: 0, depthWrite: false, depthTest: false,
-      })
-    );
-    this.serveBox.position.y = 0.03;
-    this.serveBox.renderOrder = 5;
-    this.serveBox.visible = false;
-    this.serveBoxSize = null;
-    scene.add(this.serveBox);
-
     // ---- floating callouts ----
     this.texts = [];
     for (let i = 0; i < MAX_TEXTS; i++) {
@@ -290,32 +273,6 @@ export class Effects {
     this.marker.scale.setScalar(pulse);
     this.marker.material.opacity = 0.42 + urgency * 0.4;
     this.marker.material.color.setHSL(0.14 - urgency * 0.13, 0.95, 0.58);
-  }
-
-  // The diagonal box a serve has to land in. The serve is aimed by cursor like
-  // any other shot, so the legal area has to be visible or it is guesswork.
-  setServeBox(cx, cz, w, l, visible) {
-    this.serveBox.visible = visible;
-    if (!visible) return;
-    // Rebuild only when the dimensions actually change, which is never during
-    // a match -- the service box is always the same size.
-    if (!this.serveBoxSize || this.serveBoxSize.w !== w || this.serveBoxSize.l !== l) {
-      const hw = w / 2, hl = l / 2;
-      const c = [[-hw, -hl], [hw, -hl], [hw, hl], [-hw, hl]];
-      const pts = [];
-      for (let i = 0; i < 4; i++) {
-        const a = c[i], b = c[(i + 1) % 4];
-        pts.push(a[0], 0, a[1], b[0], 0, b[1]);
-      }
-      const geo = new THREE.BufferGeometry();
-      geo.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
-      this.serveBox.geometry.dispose();
-      this.serveBox.geometry = geo;
-      this.serveBox.computeLineDistances();
-      this.serveBoxSize = { w, l };
-    }
-    this.serveBox.position.set(cx, 0.03, cz);
-    this.serveBox.material.opacity = 0.55 + Math.sin(this.time * 3.2) * 0.35;
   }
 
   // ---- per-frame ---------------------------------------------------------

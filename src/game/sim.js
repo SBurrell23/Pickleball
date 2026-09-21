@@ -1,4 +1,6 @@
-import { COURT, BALL, FENCE, PLAY, RULES, SHOT, QUALITY } from './constants.js';
+import {
+  COURT, BALL, FENCE, PLAY, RULES, SHOT, QUALITY, SWING_MODE,
+} from './constants.js';
 import { getCharacter } from './characters.js';
 import { netHeightAt, solveToLand, clampSpeed, speedOf } from './ballistics.js';
 import { mulberry32, randDisc } from './rng.js';
@@ -94,7 +96,7 @@ export class Sim {
       spin: 0, sideSpin: 0,
       live: false, held: true,
       lastHit: -1, lastTeam: -1,
-      shotCount: 0, bouncesSinceHit: 0,
+      shotCount: 0, bouncesSinceHit: 0, bounceInKitchen: false,
     };
     this.ballHistory.length = 0;
     this.setupServe();
@@ -166,7 +168,7 @@ export class Sim {
     b.v.x = 0; b.v.y = 0; b.v.z = 0;
     b.spin = 0; b.sideSpin = 0;
     b.lastHit = -1; b.lastTeam = -1;
-    b.shotCount = 0; b.bouncesSinceHit = 0;
+    b.shotCount = 0; b.bouncesSinceHit = 0; b.bounceInKitchen = false;
     this.rallyShots = 0;
     this.phase = PHASE.SERVE;
     this.phaseT = 0;
@@ -413,6 +415,8 @@ export class Sim {
     const side = Math.sign(z) || 1;
     const good = this.inBounds(x, z);
     b.bouncesSinceHit++;
+    // A ball that lands in the kitchen may only be sent back soft.
+    b.bounceInKitchen = Math.abs(z) < COURT.KITCHEN;
     this.emit({ type: 'bounce', pos: { x, y: b.p.y, z }, inBounds: good, side });
 
     const hitterTeam = b.lastTeam;
@@ -569,6 +573,7 @@ export class Sim {
   launch(p, pend, contact, isServe, beforeBounce = false) {
     const b = this.ball;
     const oppSide = -p.side;
+    const kitchenBounce = b.bounceInKitchen;
     const shot = pend.shot || (isServe ? SHOT.SERVE : SHOT.DRIVE);
     const env = FLIGHT[shot] || FLIGHT[SHOT.DRIVE];
 
@@ -616,8 +621,24 @@ export class Sim {
 
     // A well-struck ball finds the arc that clears the net; a mistimed one does not.
     const allowLoft = quality !== QUALITY.WEAK;
-    const sol = solveToLand(from, { x: tx, z: tz }, T, spin, clearance, allowLoft);
-    const v = sol.v;
+    // A ball that bounced in your kitchen can only be lifted back over with a
+    // soft shot. Trying to drive one buries it in the net -- which is what
+    // happens in life too when you swing hard on a ball at your feet.
+    const drivingOffKitchen = !beforeBounce && kitchenBounce
+      && pend.mode === SWING_MODE.DRIVE;
+
+    let v;
+    if (drivingOffKitchen) {
+      const NET_T = 0.24;
+      const aimY = netHeightAt(from.x) * 0.5;
+      v = {
+        x: (from.x * 0.9 - from.x) / NET_T,
+        y: (aimY - from.y) / NET_T - 0.5 * BALL.GRAVITY * NET_T,
+        z: (0 - from.z) / NET_T,
+      };
+    } else {
+      v = solveToLand(from, { x: tx, z: tz }, T, spin, clearance, allowLoft).v;
+    }
     clampSpeed(v, BALL.MAX_SPEED);
 
     b.p.x = from.x; b.p.y = from.y; b.p.z = from.z;
@@ -627,6 +648,7 @@ export class Sim {
     b.live = true; b.held = false;
     b.lastHit = p.idx; b.lastTeam = p.team;
     b.bouncesSinceHit = 0;
+    b.bounceInKitchen = false;
     b.shotCount++;
     this.rallyShots++;
     p.lastContact = this.time;
@@ -640,6 +662,7 @@ export class Sim {
       pos: { x: from.x, y: from.y, z: from.z },
       target: { x: tx, z: tz },
       beforeBounce,
+      illegalDrive: drivingOffKitchen,
     });
   }
 

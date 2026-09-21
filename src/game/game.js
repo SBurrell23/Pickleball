@@ -5,7 +5,7 @@ import { getCharacter, swingTuning } from './characters.js';
 import { createBotState, updateBot } from './ai.js';
 import { predictLanding } from './ballistics.js';
 import {
-  MODE, isBar, createSwingState, beginSwing, updateSwing, releaseSwing,
+  MODE, createSwingState, beginSwing, updateSwing, releaseSwing,
   sweetZone, classifyShot,
 } from './swing.js';
 import { buildBall, buildBallShadow, animateCrowd } from '../render/assets.js';
@@ -16,10 +16,6 @@ import { SNAPSHOT_HZ } from '../net/net.js';
 
 const TICK = PLAY.TICK;
 const MAX_CATCHUP = 5;
-
-// How close to the kitchen you must be for the reaction meter to take over
-// from the power meter.
-const KITCHEN_BAND = COURT.KITCHEN + 0.85;
 
 // Charge sparks tint toward this as the meter fills.
 const SPARK_HOT = new THREE.Color(0xfff3a8);
@@ -161,10 +157,6 @@ export class Game {
     this.aim.set(ax, 0.02, az);
   }
 
-  currentSwingMode() {
-    return Math.abs(this.me.z) < KITCHEN_BAND ? MODE.DINK : MODE.DRIVE;
-  }
-
   canStartSwing() {
     if (this.paused || !this.running) return false;
     const me = this.me;
@@ -178,17 +170,9 @@ export class Game {
     if (button !== 0 && button !== 2) return;
     if (!this.canStartSwing()) return;
     if (this.swing.active) return;
-    let mode;
-    if (button === 2) {
-      // Right button is always the short bar, wherever you are standing: the
-      // fast option when a ball arrives with no time to fill a drive.
-      mode = MODE.QUICK;
-    } else if (this.sim.phase === PHASE.SERVE) {
-      // Serving has no incoming ball to react to, so it is always the bar.
-      mode = MODE.DRIVE;
-    } else {
-      mode = this.currentSwingMode();
-    }
+    // Left button is the full power bar, right button the short one. Where
+    // you are standing no longer changes which meter you get.
+    const mode = button === 2 ? MODE.QUICK : MODE.DRIVE;
     this.swingButton = button;
     beginSwing(this.swing, mode, this.myTuning, Math.random, this.zoneScaleFor(mode));
     this.audio.chargeStart();
@@ -225,6 +209,7 @@ export class Game {
 
     const payload = {
       shot,
+      mode: res.mode,
       power: res.power,
       scatter: res.scatter,
       quality: res.quality,
@@ -270,7 +255,7 @@ export class Game {
       ax: this.aim.x, az: this.aim.z,
       dash: this.input.dash,
       charging: this.swing.active,
-      chargeVis: isBar(this.swing.mode) ? this.swing.t : this.swing.needle,
+      chargeVis: this.swing.t,
     };
   }
 
@@ -283,15 +268,11 @@ export class Game {
     if (this.swing.active && !this.paused) {
       updateSwing(this.swing, dt, this.myTuning);
       const zone = sweetZone(this.swing, this.myTuning, this.settings.get('meterAssist'));
-      const pos = isBar(this.swing.mode) ? this.swing.t : this.swing.needle;
+      const pos = this.swing.t;
       const inSweet = Math.abs(pos - zone.center) <= zone.half;
       this.audio.chargeUpdate(Math.min(1, this.swing.t), inSweet);
-      if (this.swing.mode === MODE.DINK && this.swing.dir !== this.lastNeedleDir) {
-        this.lastNeedleDir = this.swing.dir;
-        this.audio.needleTick(true);
-      }
-      // An overcooked drive fires itself so the charge cannot be held forever.
-      if (isBar(this.swing.mode) && this.swing.overcooked && this.swing.t >= 1.26) {
+        // An overcooked drive fires itself so the charge cannot be held forever.
+      if (this.swing.overcooked && this.swing.t >= 1.26) {
         this.onRelease(this.swingButton);
       }
     }
@@ -424,7 +405,7 @@ export class Game {
     me.swingT = this.pred.swingT;
     me.swingSide = this.pred.swingSide;
     me.charging = this.swing.active;
-    me.chargeVis = isBar(this.swing.mode) ? this.swing.t : this.swing.needle;
+    me.chargeVis = this.swing.t;
   }
 
   onSnapshot(msg) {
@@ -475,7 +456,10 @@ export class Game {
           const ch = getCharacter(this.sim.players[e.idx]?.charId);
           this.audio.paddleHit(e.power, e.quality);
           this.fx.hitEffect(e.pos, e.quality, e.power, ch.colors.primary);
-          if (e.quality === 'weak') {
+          if (e.illegalDrive) {
+            const pl = this.sim.players[e.idx];
+            this.fx.popText('TOO LOW TO DRIVE', pl.x, 1.8, pl.z, '#ff8a5c', 40);
+          } else if (e.quality === 'weak') {
             const pl = this.sim.players[e.idx];
             this.fx.popText('MISTIMED', pl.x, 1.75, pl.z, '#ffcf5c', 46);
           }
@@ -587,20 +571,6 @@ export class Game {
     const trailColor = this.settings.get('glow') ? 0xfff2a0 : 0xdddd88;
     this.fx.updateTrail(b.p, dt, this.settings.get('trails') && b.live, trailColor);
 
-    // During a serve, light up the box it has to land in.
-    if (sim.phase === PHASE.SERVE) {
-      const recvSide = -sim.players[sim.serverIdx].side;
-      const sgn = sim.serveTargetXSign;
-      const halfDepth = (COURT.HALF_L - COURT.KITCHEN) / 2;
-      this.fx.setServeBox(
-        sgn * COURT.HALF_W * 0.5,
-        recvSide * (COURT.KITCHEN + halfDepth),
-        COURT.HALF_W, halfDepth * 2, true
-      );
-    } else {
-      this.fx.setServeBox(0, 0, 1, 1, false);
-    }
-
     // Landing marker: your aim while charging, otherwise where the ball lands.
     if (this.swing.active) {
       this.fx.setLanding(this.aim.x, this.aim.z, true, 0.55);
@@ -692,11 +662,9 @@ export class Game {
       if (this.sim.phase === PHASE.SERVE) {
         shotLabel = this.swing.mode === MODE.QUICK ? 'SAFE SERVE' : 'SERVE';
       } else if (this.swing.mode === MODE.QUICK) {
-        shotLabel = this.input.soft ? 'QUICK — DROP' : 'QUICK — DINK';
-      } else if (this.swing.mode === MODE.DINK) {
-        shotLabel = this.input.soft ? 'DROP — REACTION' : 'KITCHEN — REACTION';
+        shotLabel = this.input.soft ? 'DROP SHOT' : 'DINK SHOT';
       } else {
-        shotLabel = this.input.soft ? 'LOB — POWER' : 'DRIVE — POWER';
+        shotLabel = this.input.soft ? 'LOB' : 'DRIVE SHOT';
       }
     }
 
@@ -721,6 +689,10 @@ export class Game {
     }
     if (sim.phase === PHASE.RALLY && sim.ball.shotCount < 3 && sim.ball.bouncesSinceHit === 0) {
       return 'Two-bounce rule — let it bounce';
+    }
+    if (sim.ball.live && sim.ball.bounceInKitchen && sim.ball.bouncesSinceHit > 0
+        && Math.sign(sim.ball.p.z) === this.me.side) {
+      return 'Bounced in your kitchen — <b>Right Click</b> to dink it back';
     }
     if (sim.inKitchen(this.me) && sim.ball.bouncesSinceHit === 0 && sim.ball.live) {
       return 'You are in the kitchen — no volleys';

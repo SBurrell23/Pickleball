@@ -62,6 +62,11 @@ export const PLAY = {
   SERVE_RESET: 1.15,    // pause between points
 };
 
+// The two swings. Left button is the full power bar, right button the short
+// one. Lives here rather than in swing.js so the simulation can reason about
+// which swing produced a shot without importing the mini-game.
+export const SWING_MODE = { DRIVE: 'drive', QUICK: 'quick' };
+
 // Charge / timing mini-game tuning.
 export const SWING = {
   CHARGE_TIME: 0.78,        // seconds for the power bar to fill (drive)
@@ -77,9 +82,6 @@ export const SWING = {
   QUICK_CHARGE: 0.38,       // short bar: reaches its sweet spot in about half
                             // the time of a full drive
   QUICK_POWER: 0.50,        // and can never hit anywhere near a drive's pace
-  DINK_CYCLE: 0.60,         // seconds for the needle to cross the bar and back
-  DINK_SWEET_W: 0.185,      // width of the sweet zone (0..1 of the bar)
-  DINK_PERFECT_W: 0.072,
   MIN_HOLD: 0.045,          // taps below this are treated as a quick block
 };
 

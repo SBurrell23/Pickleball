@@ -2,6 +2,14 @@
 // how that maps into world space, so W is always "toward the net" for whichever
 // side you are playing.
 
+// True when the keystroke belongs to a text field rather than the game.
+function isTyping(e) {
+  const t = e.target;
+  if (!t) return false;
+  const tag = t.tagName;
+  return tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || t.isContentEditable;
+}
+
 const MOVE_KEYS = {
   KeyW: [0, 1], KeyS: [0, -1], KeyA: [-1, 0], KeyD: [1, 0],
   ArrowUp: [0, 1], ArrowDown: [0, -1], ArrowLeft: [-1, 0], ArrowRight: [1, 0],
@@ -25,6 +33,7 @@ export class Input {
   _bind() {
     const el = this.el;
     this._onKeyDown = (e) => {
+      if (isTyping(e)) { this.keys.clear(); return; }
       if (!this.enabled) return;
       if (e.repeat) { if (MOVE_KEYS[e.code]) e.preventDefault(); return; }
       this.keys.add(e.code);
@@ -33,6 +42,7 @@ export class Input {
       if (MOVE_KEYS[e.code] || e.code === 'Space') e.preventDefault();
     };
     this._onKeyUp = (e) => {
+      if (isTyping(e)) return;
       this.keys.delete(e.code);
       this._fire('key', e.code, false, e);
     };

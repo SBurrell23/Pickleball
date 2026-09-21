@@ -2,7 +2,7 @@ import { COURT, PLAY, SWING, SHOT } from './constants.js';
 import { PHASE, SWINGSTATE } from './sim.js';
 import { getCharacter, swingTuning } from './characters.js';
 import {
-  MODE, isBar, createSwingState, beginSwing, updateSwing, releaseSwing, classifyShot,
+  MODE, createSwingState, beginSwing, updateSwing, releaseSwing, classifyShot,
 } from './swing.js';
 
 // The paddle goes live SWING_WINDUP after release and stays live for
@@ -128,17 +128,6 @@ function volleyIllegal(sim, p) {
 }
 
 function fireSwing(sim, p, st, tune) {
-  const d = st.difficulty;
-  if (st.sw.mode === MODE.DINK) {
-    // The bot's bar is never drawn, so grading it against wherever the needle
-    // actually is -- plus a skill-scaled error -- is equivalent to it having
-    // reacted that well, and keeps one shared code path with the player.
-    const want = 0.42;
-    const had = Math.max(0.06, st.leadAtStart ?? want);
-    const rush = Math.min(3.2, Math.max(1, want / had));
-    const err = (Math.random() * 2 - 1) * ((1 - d) * 0.78 + 0.012) * rush;
-    st.sw.sweetCenter = Math.max(0.02, Math.min(0.98, st.sw.needle + err));
-  }
   const res = releaseSwing(st.sw, tune);
   const beforeBounce = sim.ball.bouncesSinceHit === 0;
   const shot = classifyShot({
@@ -147,8 +136,8 @@ function fireSwing(sim, p, st, tune) {
     isServe: false, quality: res.quality,
   });
   sim.queueSwing(p.idx, {
-    shot, power: res.power, scatter: res.scatter, quality: res.quality,
-    ax: st.target.x, az: st.target.z, rewind: 0,
+    shot, mode: res.mode, power: res.power, scatter: res.scatter,
+    quality: res.quality, ax: st.target.x, az: st.target.z, rewind: 0,
   });
 }
 
@@ -178,7 +167,7 @@ export function updateBot(sim, p, st, dt) {
       if (st.sw.t >= aim || st.sw.overcooked) {
         const res = releaseSwing(st.sw, tune);
         sim.queueSwing(p.idx, {
-          shot: SHOT.SERVE, power: res.power, scatter: res.scatter,
+          shot: SHOT.SERVE, mode: res.mode, power: res.power, scatter: res.scatter,
           quality: res.quality, ax: st.target.x, az: st.target.z, rewind: 0,
         });
         st.committed = true;
@@ -272,7 +261,7 @@ export function updateBot(sim, p, st, dt) {
   if (st.sw.active) {
     updateSwing(st.sw, dt, tune);
     inp.charging = true;
-    inp.chargeVis = isBar(st.sw.mode) ? st.sw.t : st.sw.needle;
+    inp.chargeVis = st.sw.t;
 
     if (!arrival) {
       // The read changed -- abandon rather than swing at nothing.
@@ -281,7 +270,7 @@ export function updateBot(sim, p, st, dt) {
     }
     if (volleyIllegal(sim, p)) {
       // Hold: contacting the ball right now would hand over the point.
-      if (isBar(st.sw.mode) && st.sw.overcooked) st.sw.active = false;
+      if (st.sw.overcooked) st.sw.active = false;
       return inp;
     }
     if (arrival.t <= CONTACT_LEAD || st.sw.overcooked) fireSwing(sim, p, st, tune);
@@ -292,6 +281,15 @@ export function updateBot(sim, p, st, dt) {
     // Never start a swing that would land on an illegal volley.
     if (arrival.bounced === 0 && (sim.inKitchen(p) || sim.ball.shotCount < 3)) return inp;
 
+    // A ball that bounces in the kitchen can only be lifted back soft; driving
+    // it buries the ball in the net. The decision is made before contact, so if
+    // the bounce has not happened yet this has to be read off the predicted
+    // landing rather than the flag, which still describes the previous bounce.
+    const alreadyBounced = sim.ball.bouncesSinceHit > 0;
+    const mustDink = alreadyBounced
+      ? sim.ball.bounceInKitchen
+      : !!(arrival.bounced > 0 && arrival.landing
+        && Math.abs(arrival.landing.z) < COURT.KITCHEN);
     const atKitchen = Math.abs(p.z) < COURT.KITCHEN + 0.85;
     st.startBias = (Math.random() * 2 - 1) * ((1 - d) * 0.32 + 0.012);
 
@@ -302,8 +300,8 @@ export function updateBot(sim, p, st, dt) {
     const quickNeed = (aim * SWING.QUICK_CHARGE) / tune.chargeRate + CONTACT_LEAD;
 
     let mode;
-    if (atKitchen) {
-      mode = MODE.DINK;
+    if (mustDink) {
+      mode = MODE.QUICK;
     } else if (arrival.t > driveNeed) {
       // Plenty of warning. Occasionally take the short bar anyway, as a drop.
       if (d > 0.45 && Math.random() < 0.14) mode = MODE.QUICK;
@@ -318,8 +316,7 @@ export function updateBot(sim, p, st, dt) {
       mode = d > 0.4 ? MODE.QUICK : MODE.DRIVE;
     }
 
-    const chargeNeeded = mode === MODE.DINK ? 0.42
-      : (mode === MODE.QUICK ? quickNeed : driveNeed) - CONTACT_LEAD;
+    const chargeNeeded = (mode === MODE.QUICK ? quickNeed : driveNeed) - CONTACT_LEAD;
     if (arrival.t <= chargeNeeded + CONTACT_LEAD) {
       beginSwing(st.sw, mode, tune);
       st.mode = mode;
@@ -332,7 +329,8 @@ export function updateBot(sim, p, st, dt) {
       const attackable = arrival.bounced === 0
         && arrival.y > COURT.NET_H_CENTER + 0.40;
       // Speed-ups keep a kitchen exchange from becoming a stalemate.
-      const speedUp = atKitchen && arrival.y > COURT.NET_H_CENTER + 0.12
+      const speedUp = !mustDink && atKitchen
+        && arrival.y > COURT.NET_H_CENTER + 0.12
         && Math.random() < 0.25 + d * 0.15;
 
       // A good bot resets with a soft ball when it is pinned deep.

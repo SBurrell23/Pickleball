@@ -283,15 +283,6 @@ export class AudioEngine {
     this.chargeVoice = null;
   }
 
-  // Fast ticking while the kitchen needle sweeps, so the reaction test has an
-  // audible pulse too.
-  needleTick(edge = false) {
-    if (!this.ready) return;
-    this._tone(this.sfxBus, {
-      freq: edge ? 880 : 1500, dur: 0.03, type: 'square', gain: edge ? 0.03 : 0.045,
-    });
-  }
-
   pointWon(won) {
     if (!this.ready) return;
     const notes = won ? [523.25, 659.25, 783.99, 1046.5] : [659.25, 587.33, 493.88, 392.0];
