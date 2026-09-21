@@ -39,6 +39,22 @@ void main() {
   gl_FragColor = vec4(vCol, 1.0) * t;
 }`;
 
+// Hollow rectangle: a bright border with a barely-there fill, so the service
+// box reads as a target without hiding the court under it.
+function serveBoxTexture() {
+  const c = document.createElement('canvas');
+  c.width = c.height = 128;
+  const g = c.getContext('2d');
+  g.clearRect(0, 0, 128, 128);
+  g.fillStyle = 'rgba(228, 239, 63, 0.13)';
+  g.fillRect(0, 0, 128, 128);
+  g.strokeStyle = 'rgba(228, 239, 63, 0.95)';
+  g.lineWidth = 8;
+  g.setLineDash([18, 12]);
+  g.strokeRect(4, 4, 120, 120);
+  return new THREE.CanvasTexture(c);
+}
+
 const MAX_PARTICLES = 520;
 const TRAIL_SEGMENTS = 26;
 const MAX_RINGS = 14;
@@ -122,6 +138,20 @@ export class Effects {
     this.marker.rotation.x = -Math.PI / 2;
     this.marker.renderOrder = 3;
     scene.add(this.marker);
+
+    // ---- service box target ----
+    this.serveBox = new THREE.Mesh(
+      new THREE.PlaneGeometry(1, 1),
+      new THREE.MeshBasicMaterial({
+        map: serveBoxTexture(), transparent: true, opacity: 0,
+        depthWrite: false, side: THREE.DoubleSide,
+      })
+    );
+    this.serveBox.rotation.x = -Math.PI / 2;
+    this.serveBox.position.y = 0.024;
+    this.serveBox.renderOrder = 2;
+    this.serveBox.visible = false;
+    scene.add(this.serveBox);
 
     // ---- floating callouts ----
     this.texts = [];
@@ -273,6 +303,16 @@ export class Effects {
     this.marker.scale.setScalar(pulse);
     this.marker.material.opacity = 0.42 + urgency * 0.4;
     this.marker.material.color.setHSL(0.14 - urgency * 0.13, 0.95, 0.58);
+  }
+
+  // The diagonal box a serve has to land in. The serve is aimed by cursor like
+  // any other shot, so the legal area has to be visible or it is guesswork.
+  setServeBox(cx, cz, w, l, visible) {
+    this.serveBox.visible = visible;
+    if (!visible) return;
+    this.serveBox.position.set(cx, 0.024, cz);
+    this.serveBox.scale.set(w, l, 1);
+    this.serveBox.material.opacity = 0.62 + Math.sin(this.time * 3.4) * 0.18;
   }
 
   // ---- per-frame ---------------------------------------------------------

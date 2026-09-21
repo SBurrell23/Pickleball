@@ -37,14 +37,18 @@ export function createSwingState() {
     needle: 0,      // needle position (dink) 0..1
     dir: 1,
     sweetCenter: 0.5,
+    zoneScale: 1,
     overcooked: false,
     lastResult: null,
   };
 }
 
-export function beginSwing(sw, mode, tuning, rand = Math.random) {
+export function beginSwing(sw, mode, tuning, rand = Math.random, zoneScale = 1) {
   sw.active = true;
   sw.mode = mode;
+  // Shrinks the sweet and good bands without touching the wider "ok" shoulder,
+  // so a harder swing costs you quality rather than becoming unplayable.
+  sw.zoneScale = zoneScale;
   sw.t = 0;
   sw.held = 0;
   sw.dir = 1;
@@ -86,14 +90,25 @@ export function updateSwing(sw, dt, tuning) {
 // exactly what the resolver will score.
 export function sweetZone(sw, tuning, assist = 1) {
   const scale = tuning.sweetScale * assist;
+  const z = sw.zoneScale ?? 1;
   if (isBar(sw.mode)) {
-    const half = ((SWING.DRIVE_SWEET_HI - SWING.DRIVE_SWEET_LO) * 0.5) * scale;
-    const perfect = (SWING.DRIVE_PERFECT_W * 0.5) * scale;
-    return { center: sw.sweetCenter, half, perfect, okHalf: half * 1.85 };
+    const base = ((SWING.DRIVE_SWEET_HI - SWING.DRIVE_SWEET_LO) * 0.5) * scale;
+    return {
+      center: sw.sweetCenter,
+      half: base * z,
+      perfect: (SWING.DRIVE_PERFECT_W * 0.5) * scale * z,
+      // Derived from the unshrunk band: tightening a swing should cost you the
+      // top grades, not make the shot impossible to land at all.
+      okHalf: base * 1.85,
+    };
   }
-  const half = (SWING.DINK_SWEET_W * 0.5) * scale;
-  const perfect = (SWING.DINK_PERFECT_W * 0.5) * scale;
-  return { center: sw.sweetCenter, half, perfect, okHalf: half * 1.9 };
+  const base = (SWING.DINK_SWEET_W * 0.5) * scale;
+  return {
+    center: sw.sweetCenter,
+    half: base * z,
+    perfect: (SWING.DINK_PERFECT_W * 0.5) * scale * z,
+    okHalf: base * 1.9,
+  };
 }
 
 function gradeDistance(d, zone) {

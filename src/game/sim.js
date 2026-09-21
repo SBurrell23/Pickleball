@@ -572,18 +572,14 @@ export class Sim {
     const scatter = Math.max(0, pend.scatter ?? 0.5);
     const quality = pend.quality || QUALITY.OK;
 
+    // The aim point is taken as given, serve or not. A serve used to be forced
+    // into the diagonal box, which made aiming it decorative and meant a serve
+    // could never actually be missed -- now placing it is the player's job and
+    // the service-box check on the first bounce is a real rule again.
     let tx = pend.ax ?? 0;
     let tz = pend.az ?? oppSide * (COURT.HALF_L * 0.6);
-    if (isServe) {
-      const sgn = this.serveTargetXSign;
-      tx = Math.max(0.25, Math.min(COURT.HALF_W - 0.2, Math.abs(tx))) * sgn;
-      tz = oppSide * Math.max(COURT.KITCHEN + 0.45,
-        Math.min(COURT.HALF_L - 0.12, Math.abs(tz)));
-    } else {
-      tx = Math.max(-(COURT.HALF_W + 0.55), Math.min(COURT.HALF_W + 0.55, tx));
-      const az = Math.abs(tz);
-      tz = oppSide * Math.max(0.55, Math.min(COURT.HALF_L + 0.7, az));
-    }
+    tx = Math.max(-(COURT.HALF_W + 0.55), Math.min(COURT.HALF_W + 0.55, tx));
+    tz = oppSide * Math.max(0.55, Math.min(COURT.HALF_L + 0.7, Math.abs(tz)));
 
     // Mistimed shots fall short as well as wide, which is what gets punished.
     if (quality === QUALITY.WEAK) { tz *= 0.74; tx *= 0.9; }
@@ -595,14 +591,8 @@ export class Sim {
       // Scatter must never push the aim back over the net -- a mistimed shot
       // still travels forward, it just lands somewhere worse. Re-clamp after
       // the roll so bad timing costs you depth and width, not direction.
-      if (isServe) {
-        tx = Math.max(0.2, Math.min(COURT.HALF_W + 0.35, Math.abs(tx))) * this.serveTargetXSign;
-        tz = oppSide * Math.max(COURT.KITCHEN - 0.35,
-          Math.min(COURT.HALF_L + 0.6, Math.abs(tz)));
-      } else {
-        tx = Math.max(-(COURT.HALF_W + 1.5), Math.min(COURT.HALF_W + 1.5, tx));
-        tz = oppSide * Math.max(0.35, Math.min(COURT.HALF_L + 1.7, Math.abs(tz)));
-      }
+      tx = Math.max(-(COURT.HALF_W + 1.5), Math.min(COURT.HALF_W + 1.5, tx));
+      tz = oppSide * Math.max(0.35, Math.min(COURT.HALF_L + 1.7, Math.abs(tz)));
     }
 
     const from = {
@@ -612,12 +602,16 @@ export class Sim {
     };
 
     let T = Math.max(env.min, env.base - (env.base - env.min) * Math.min(1, power));
+    // Power over 1.0 is overdrive: it pushes the flight time below the normal
+    // floor. Without this the lerp clamped at 1 and a power character's stat
+    // stopped mattering the moment they struck the ball cleanly.
+    if (power > 1) T = Math.max(env.min * 0.76, T * (1 - (power - 1) * 0.42));
     // Mistimed contact floats the ball. Sitting it up is what turns a bad
     // touch into an attackable ball for the opponent, so the timing bars
     // matter beyond raw pace.
     if (quality === QUALITY.WEAK) T *= 1.45;
     else if (quality === QUALITY.OK) T *= 1.13;
-    const spin = env.spin * (0.55 + 0.6 * Math.min(1, power));
+    const spin = env.spin * (0.55 + 0.6 * Math.min(1.25, power));
     const clearance = NET_CLEARANCE[shot] ?? 0.12;
 
     // A well-struck ball finds the arc that clears the net; a mistimed one does not.

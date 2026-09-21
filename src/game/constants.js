@@ -69,6 +69,11 @@ export const SWING = {
   DRIVE_SWEET_LO: 0.775,    // sweet band on the power bar
   DRIVE_SWEET_HI: 0.945,
   DRIVE_PERFECT_W: 0.055,   // perfect band, centred in the sweet zone
+  // Serving gives you unlimited time to watch the bar, so its bands are much
+  // tighter than a rallying shot's -- otherwise every serve is a free perfect.
+  // Only serves are affected; rally timing is unchanged.
+  SERVE_ZONE: 1 / 3,        // serving off the full bar
+  SERVE_ZONE_QUICK: 1 / 2,  // serving off the short bar, already harder
   QUICK_CHARGE: 0.38,       // short bar: reaches its sweet spot in about half
                             // the time of a full drive
   QUICK_POWER: 0.50,        // and can never hit anywhere near a drive's pace

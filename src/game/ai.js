@@ -186,12 +186,17 @@ export function updateBot(sim, p, st, dt) {
     } else if (!st.committed) {
       st.reactionT += dt;
       if (st.reactionT > 0.45 + (1 - d) * 0.6) {
-        beginSwing(st.sw, MODE.DRIVE, tune);
+        beginSwing(st.sw, MODE.DRIVE, tune, Math.random, SWING.SERVE_ZONE);
         st.target = {
           x: sim.serveTargetXSign * (COURT.HALF_W * (0.35 + Math.random() * 0.5)),
           z: -p.side * (COURT.KITCHEN + 1.2 + Math.random() * 2.6),
         };
-        st.startBias = (Math.random() * 2 - 1) * ((1 - d) * 0.22 + 0.012);
+        // Scaled by the same factor the serve band was tightened by. The zone
+        // size is a difficulty knob for the player; for a bot, how well it
+        // serves should stay governed by its difficulty, not by how narrow the
+        // band happens to be -- otherwise tightening it just makes bots inept.
+        st.startBias = (Math.random() * 2 - 1)
+          * ((1 - d) * 0.22 + 0.012) * SWING.SERVE_ZONE;
       }
     }
     return inp;
@@ -253,8 +258,12 @@ export function updateBot(sim, p, st, dt) {
   const dx = goalX - p.x, dz = goalZ - p.z;
   const dist = Math.hypot(dx, dz);
   if (dist > 0.10) {
-    inp.mx = dx / dist;
-    inp.mz = dz / dist;
+    // Ease off near the target. Without this a bot runs at full speed until it
+    // is 10cm away and then overshoots, which made extra speed a liability
+    // instead of an advantage -- a faster character measured as a worse one.
+    const ease = Math.min(1, dist / 0.85);
+    inp.mx = (dx / dist) * ease;
+    inp.mz = (dz / dist) * ease;
     // Dash for balls that are genuinely out of range.
     if (dist > 2.6 && arrival && arrival.t < 0.9 && d > 0.35) inp.dash = true;
   }

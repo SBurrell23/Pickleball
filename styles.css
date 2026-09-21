@@ -425,7 +425,7 @@ button.big span { font-size: 12px; color: var(--ink-soft); font-weight: 600; let
 
 .stat-row {
   display: grid;
-  grid-template-columns: 62px 1fr;
+  grid-template-columns: 62px 1fr 46px;
   align-items: center;
   gap: 10px;
   font-size: 11px;
@@ -448,6 +448,39 @@ button.big span { font-size: 12px; color: var(--ink-soft); font-weight: 600; let
   background: repeating-linear-gradient(135deg,
     var(--kitchen) 0 7px, var(--court) 7px 14px);
 }
+
+.stat-row { cursor: help; border-radius: 6px; padding: 1px 3px; margin-left: -3px; }
+.stat-row:hover, .stat-row:focus { background: rgba(22, 152, 138, 0.12); outline: none; }
+.stat-row:focus-visible { outline: 2px solid var(--kitchen); outline-offset: 1px; }
+.stat-rel { text-align: right; font-size: 10.5px; color: var(--ink-soft); }
+.stat-rel.up { color: var(--kitchen-dark); }
+.stat-rel.down { color: #b4604f; }
+
+/* One reused tooltip for the whole stat block. */
+.tip {
+  position: absolute;
+  z-index: 40;
+  width: 230px;
+  padding: 11px 13px;
+  background: var(--ink);
+  color: #dceaf2;
+  border: 3px solid var(--line);
+  border-radius: 11px;
+  box-shadow: 0 6px 0 rgba(6, 16, 24, 0.5), 0 14px 28px rgba(6, 20, 30, 0.45);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.12s;
+}
+.tip.on { opacity: 1; }
+.tip strong {
+  display: block;
+  color: var(--ball);
+  font-size: 12px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  margin-bottom: 5px;
+}
+.tip span { display: block; font-size: 12.5px; line-height: 1.5; font-weight: 600; }
 
 .picker { margin-top: 14px; }
 .picker-label {

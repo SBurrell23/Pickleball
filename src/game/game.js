@@ -1,5 +1,5 @@
 import * as THREE from '../../vendor/three.module.js';
-import { COURT, PLAY, QUALITY } from './constants.js';
+import { COURT, PLAY, SWING, QUALITY } from './constants.js';
 import { Sim, PHASE, SWINGSTATE } from './sim.js';
 import { getCharacter, swingTuning } from './characters.js';
 import { createBotState, updateBot } from './ai.js';
@@ -190,8 +190,17 @@ export class Game {
       mode = this.currentSwingMode();
     }
     this.swingButton = button;
-    beginSwing(this.swing, mode, this.myTuning);
+    beginSwing(this.swing, mode, this.myTuning, Math.random, this.zoneScaleFor(mode));
     this.audio.chargeStart();
+  }
+
+  // Serving hands you unlimited time to stare at the bar, so its bands are far
+  // tighter than in a rally. The wider "ok" shoulder is untouched, so this
+  // costs quality rather than making the serve unplayable.
+  zoneScaleFor(mode) {
+    const serving = this.sim.phase === PHASE.SERVE && this.sim.serverIdx === this.myIdx;
+    if (!serving) return 1;
+    return mode === MODE.QUICK ? SWING.SERVE_ZONE_QUICK : SWING.SERVE_ZONE;
   }
 
   onRelease(button) {
@@ -579,6 +588,20 @@ export class Game {
 
     const trailColor = this.settings.get('glow') ? 0xfff2a0 : 0xdddd88;
     this.fx.updateTrail(b.p, dt, this.settings.get('trails') && b.live, trailColor);
+
+    // During a serve, light up the box it has to land in.
+    if (sim.phase === PHASE.SERVE) {
+      const recvSide = -sim.players[sim.serverIdx].side;
+      const sgn = sim.serveTargetXSign;
+      const halfDepth = (COURT.HALF_L - COURT.KITCHEN) / 2;
+      this.fx.setServeBox(
+        sgn * COURT.HALF_W * 0.5,
+        recvSide * (COURT.KITCHEN + halfDepth),
+        COURT.HALF_W, halfDepth * 2, true
+      );
+    } else {
+      this.fx.setServeBox(0, 0, 1, 1, false);
+    }
 
     // Landing marker: your aim while charging, otherwise where the ball lands.
     if (this.swing.active) {

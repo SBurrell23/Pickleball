@@ -51,6 +51,48 @@ function surfaceTexture(base, speck) {
   }, [6, 6]);
 }
 
+// The apron is a laid sport surface, not turf: coarse aggregate grain, patchy
+// wear, and faint squeegee streaks from when it was rolled out.
+function apronTexture() {
+  return canvasTex(512, 512, (g, w, h) => {
+    g.fillStyle = '#2b3a2f';
+    g.fillRect(0, 0, w, h);
+
+    // Broad patchiness so large areas are not uniform.
+    for (let i = 0; i < 46; i++) {
+      g.globalAlpha = 0.05 + Math.random() * 0.07;
+      g.fillStyle = Math.random() < 0.5 ? '#35492f' : '#1f2b23';
+      g.beginPath();
+      g.arc(Math.random() * w, Math.random() * h, 40 + Math.random() * 110, 0, Math.PI * 2);
+      g.fill();
+    }
+
+    // Squeegee streaks, all roughly one direction.
+    g.lineCap = 'round';
+    for (let i = 0; i < 150; i++) {
+      const y = Math.random() * h;
+      g.globalAlpha = 0.03 + Math.random() * 0.05;
+      g.strokeStyle = Math.random() < 0.5 ? '#3c4f38' : '#212d24';
+      g.lineWidth = 1 + Math.random() * 4;
+      g.beginPath();
+      const x = Math.random() * w;
+      g.moveTo(x, y);
+      g.lineTo(x + 60 + Math.random() * 190, y + (Math.random() - 0.5) * 8);
+      g.stroke();
+    }
+
+    // Aggregate grain: the close-up read.
+    for (let i = 0; i < 16000; i++) {
+      g.globalAlpha = 0.06 + Math.random() * 0.20;
+      const t = Math.random();
+      g.fillStyle = t < 0.45 ? '#3a4f36' : t < 0.8 ? '#1d2720' : '#475c41';
+      const r = 0.7 + Math.random() * 1.7;
+      g.fillRect(Math.random() * w, Math.random() * h, r, r);
+    }
+    g.globalAlpha = 1;
+  }, [10, 10]);
+}
+
 function netTexture() {
   return canvasTex(128, 128, (g, w, h) => {
     g.clearRect(0, 0, w, h);
@@ -110,9 +152,9 @@ export function buildCourt(quality = 'high') {
 
   const apron = new THREE.Mesh(
     new THREE.BoxGeometry(APRON_X * 2, 0.18, APRON_Z * 2),
-    mat(0x3f7f63, { roughness: 0.95 })
+    mat(0xffffff, { roughness: 0.97 })
   );
-  apron.material.map = surfaceTexture('#3f7f63', '#24564180');
+  apron.material.map = apronTexture();
   apron.position.y = -0.09;
   apron.receiveShadow = quality !== 'off';
   root.add(apron);

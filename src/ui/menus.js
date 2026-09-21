@@ -7,6 +7,32 @@ const STAT_LABELS = {
   speed: 'Speed', power: 'Power', reach: 'Reach', control: 'Control', charge: 'Charge',
 };
 
+// What each stat actually drives, written against the code rather than the
+// vibe. Kept honest deliberately: a stat screen that describes something the
+// simulation does not do is worse than no stat screen.
+const STAT_TIPS = {
+  speed: {
+    title: 'Running speed',
+    body: 'How fast you move and how far a dash carries you. Nothing else — it does not affect your shots.',
+  },
+  power: {
+    title: 'Shot pace',
+    body: 'Multiplies the speed of every ball you hit, which shortens its flight time and flattens its arc. Less time for your opponent to read it.',
+  },
+  reach: {
+    title: 'Paddle reach',
+    body: 'How far from you the paddle can still meet the ball, sideways. How high you can reach comes from your size, not from this.',
+  },
+  control: {
+    title: 'Accuracy',
+    body: 'Widens the sweet spot on every meter, and tightens how far a mistimed shot scatters from where you aimed.',
+  },
+  charge: {
+    title: 'Wind-up speed',
+    body: 'How fast both power bars fill, so how early the sweet spot arrives. High charge means you can still load a full shot off a fast ball.',
+  },
+};
+
 const SCHEMA = {
   Graphics: [
     { key: 'fpsCap', label: 'Frame rate cap', type: 'select',
@@ -230,6 +256,45 @@ export class Menus {
     this.afterRender();
   }
 
+  // Custom tooltip: one element reused for every stat row, positioned beside
+  // the row it belongs to and flipped if it would run off the panel.
+  bindStatTips() {
+    const rows = this.el.querySelectorAll('[data-tip]');
+    if (!rows.length) return;
+    let tip = this.el.querySelector('.tip');
+    if (!tip) {
+      tip = document.createElement('div');
+      tip.className = 'tip';
+      this.el.appendChild(tip);
+    }
+    const show = (row) => {
+      const info = STAT_TIPS[row.dataset.tip];
+      if (!info) return;
+      tip.innerHTML = `<strong>${info.title}</strong><span>${info.body}</span>`;
+      tip.classList.add('on');
+      const r = row.getBoundingClientRect();
+      const host = this.el.getBoundingClientRect();
+      tip.style.visibility = 'hidden';
+      tip.style.left = '0px';
+      const tw = tip.offsetWidth, th = tip.offsetHeight;
+      let left = r.left - host.left - tw - 14;
+      if (left < 8) left = r.right - host.left + 14;          // flip to the right
+      left = Math.min(left, host.width - tw - 8);
+      let top = r.top - host.top + r.height / 2 - th / 2;
+      top = Math.max(8, Math.min(top, host.height - th - 8));
+      tip.style.left = left + 'px';
+      tip.style.top = top + 'px';
+      tip.style.visibility = '';
+    };
+    const hide = () => tip.classList.remove('on');
+    for (const row of rows) {
+      row.addEventListener('pointerenter', () => show(row));
+      row.addEventListener('pointerleave', hide);
+      row.addEventListener('focus', () => show(row));
+      row.addEventListener('blur', hide);
+    }
+  }
+
   afterRender() {
     // Portraits
     for (const cv of this.el.querySelectorAll('canvas[data-char]')) {
@@ -265,6 +330,7 @@ export class Menus {
       input.addEventListener('change', withPreview);
     }
     this.drawCursorPreview();
+    this.bindStatTips();
     const code = this.el.querySelector('#roomCode');
     if (code) {
       code.addEventListener('keydown', (e) => { if (e.key === 'Enter') this.doJoin(); });
@@ -357,10 +423,13 @@ export class Menus {
       </div>`).join('');
 
     const stats = Object.entries(sel.stats).map(([k, v]) => {
-      const pctv = Math.max(4, Math.min(100, ((v - 0.7) / 0.62) * 100));
-      return `<div class="stat-row">
+      const pctv = Math.max(4, Math.min(100, ((v - 0.78) / 0.46) * 100));
+      const rel = Math.round((v - 1) * 100);
+      const relTxt = rel === 0 ? 'average' : (rel > 0 ? '+' : '') + rel + '%';
+      return `<div class="stat-row" data-tip="${k}" tabindex="0">
         <span>${STAT_LABELS[k]}</span>
         <div class="stat-bar"><i style="width:${pctv}%"></i></div>
+        <span class="stat-rel ${rel > 0 ? 'up' : rel < 0 ? 'down' : ''}">${relTxt}</span>
       </div>`;
     }).join('');
 

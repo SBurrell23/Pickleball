@@ -54,6 +54,28 @@ actually decides rallies — *floats*, sitting the ball up for a smash. The
 paddle is attached to nothing: it hovers beside the player, drifts toward
 wherever you are aiming, and locks to the swing side once you commit.
 
+## Characters
+
+Six of them, and the stats are real multipliers on the simulation, not flavour:
+
+| Stat | What it actually drives |
+| --- | --- |
+| Speed | Top running speed and dash distance. Nothing to do with your shots. |
+| Power | The pace of every ball you hit, which shortens its flight time and flattens its arc. |
+| Reach | How far sideways the paddle can still meet the ball. Vertical reach comes from the character's size instead. |
+| Control | Widens the sweet spot on every meter, and tightens how far a mistimed shot scatters. |
+| Charge | How fast both power bars fill, so how early the sweet spot arrives. |
+
+Hovering a stat in the character screen explains it. The roster was tuned
+against measurement rather than feel — `tools/roster.mjs` plays a round-robin
+and then a single-stat sensitivity sweep, moving one stat on a clone and
+playing it against its unmodified twin. That is how the spreads were set: a 25%
+reach advantage alone won 90% of games, so reach has a deliberately narrow
+range, while power needed widening. It also caught two outright bugs — power
+above 1.0 did nothing at all because the flight-time lerp clamped it, and the
+bots overshot their intercept point, which made a *faster* character measure as
+a worse one.
+
 ## Rules
 
 Real pickleball rules, because they are what make the two meters matter:
@@ -62,7 +84,11 @@ Real pickleball rules, because they are what make the two meters matter:
   but you may not volley from it. Let the ball bounce first.
 - **Two-bounce rule** — the serve and the return must both bounce before anyone
   may volley.
-- **Serving** is underhand and cross-court, and must clear the kitchen.
+- **Serving** is underhand and cross-court, and must clear the kitchen. You aim
+  it with the cursor like any other shot and the target box is drawn on the
+  court, so placing it is your job — and the timing bands on a serve are three
+  times narrower than in a rally, because you get unlimited time to watch the
+  bar.
 - Rally scoring to 11, win by 2.
 
 ## Multiplayer
