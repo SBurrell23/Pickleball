@@ -411,12 +411,16 @@ function buildCrowd() {
         seeds.push({
           x, y, z,
           phase: Math.random() * 6.283,
-          amp: 0.05 + Math.random() * 0.09,
+          amp: 0.07 + Math.random() * 0.12,
           // Everyone has their own jump rhythm and their own starting point in
           // it, so a cheering crowd ripples instead of pulsing in unison.
           period: 0.62 + Math.random() * 0.36,
           offset: Math.random(),
           sway: 0.7 + Math.random() * 0.7,
+          // How much this one bounces when nothing in particular is happening.
+          // Skewed low so a few people are always up and most are not.
+          eager: Math.pow(Math.random(), 1.8),
+          lean: 0.5 + Math.random() * 1.1,
         });
         m.compose(new THREE.Vector3(x, y + 0.3, z), q, sc);
         bodies.setMatrixAt(i, m);
@@ -454,19 +458,22 @@ export function animateCrowd(group, dt, excitement = 0) {
 
   for (let i = 0; i < d.count; i++) {
     const s = d.seeds[i];
-    // Always-on idle sway, at a rate that never changes.
-    let lift = Math.sin(t * s.sway + s.phase) * 0.012;
+    // Idle fidget: everyone shifts their weight, all the time.
+    const lift0 = Math.sin(t * s.sway + s.phase) * 0.030;
+    const sway = Math.sin(t * s.lean + s.phase * 1.7) * 0.022;
 
-    if (hype > 0.02) {
-      // A real jump: leave the ground, arc, land. Parabola over each cycle.
-      const u = (t / s.period + s.offset) % 1;
-      lift += 4 * u * (1 - u) * s.amp * hype;
-    }
+    // A crowd is never completely still, so there is always some bounce --
+    // skewed per person, so a handful are up while most are not. Excitement
+    // raises everyone to the same full jump.
+    const ambient = 0.12 + s.eager * 0.30;
+    const drive = Math.max(ambient, hype);
+    const u = (t / s.period + s.offset) % 1;
+    const lift = lift0 + 4 * u * (1 - u) * s.amp * drive;
 
-    v.set(s.x, s.y + 0.3 + lift, s.z);
+    v.set(s.x + sway, s.y + 0.3 + lift, s.z);
     m.compose(v, q, sc);
     d.bodies.setMatrixAt(i, m);
-    v.set(s.x, s.y + 0.62 + lift, s.z);
+    v.set(s.x + sway * 1.25, s.y + 0.62 + lift, s.z);
     m.compose(v, q, sc);
     d.heads.setMatrixAt(i, m);
   }

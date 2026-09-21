@@ -39,22 +39,6 @@ void main() {
   gl_FragColor = vec4(vCol, 1.0) * t;
 }`;
 
-// Hollow rectangle: a bright border with a barely-there fill, so the service
-// box reads as a target without hiding the court under it.
-function serveBoxTexture() {
-  const c = document.createElement('canvas');
-  c.width = c.height = 128;
-  const g = c.getContext('2d');
-  g.clearRect(0, 0, 128, 128);
-  g.fillStyle = 'rgba(228, 239, 63, 0.13)';
-  g.fillRect(0, 0, 128, 128);
-  g.strokeStyle = 'rgba(228, 239, 63, 0.95)';
-  g.lineWidth = 8;
-  g.setLineDash([18, 12]);
-  g.strokeRect(4, 4, 120, 120);
-  return new THREE.CanvasTexture(c);
-}
-
 const MAX_PARTICLES = 520;
 const TRAIL_SEGMENTS = 26;
 const MAX_RINGS = 14;
@@ -140,17 +124,20 @@ export class Effects {
     scene.add(this.marker);
 
     // ---- service box target ----
-    this.serveBox = new THREE.Mesh(
-      new THREE.PlaneGeometry(1, 1),
-      new THREE.MeshBasicMaterial({
-        map: serveBoxTexture(), transparent: true, opacity: 0,
-        depthWrite: false, side: THREE.DoubleSide,
+    // A thin dashed outline, not a tinted panel: it marks the legal area
+    // without recolouring the court underneath it. Built at true size so the
+    // dashes stay even -- scaling a unit quad would stretch them.
+    this.serveBox = new THREE.LineSegments(
+      new THREE.BufferGeometry(),
+      new THREE.LineDashedMaterial({
+        color: 0xe4ef3f, dashSize: 0.26, gapSize: 0.20,
+        transparent: true, opacity: 0, depthWrite: false, depthTest: false,
       })
     );
-    this.serveBox.rotation.x = -Math.PI / 2;
-    this.serveBox.position.y = 0.024;
-    this.serveBox.renderOrder = 2;
+    this.serveBox.position.y = 0.03;
+    this.serveBox.renderOrder = 5;
     this.serveBox.visible = false;
+    this.serveBoxSize = null;
     scene.add(this.serveBox);
 
     // ---- floating callouts ----
@@ -310,9 +297,25 @@ export class Effects {
   setServeBox(cx, cz, w, l, visible) {
     this.serveBox.visible = visible;
     if (!visible) return;
-    this.serveBox.position.set(cx, 0.024, cz);
-    this.serveBox.scale.set(w, l, 1);
-    this.serveBox.material.opacity = 0.62 + Math.sin(this.time * 3.4) * 0.18;
+    // Rebuild only when the dimensions actually change, which is never during
+    // a match -- the service box is always the same size.
+    if (!this.serveBoxSize || this.serveBoxSize.w !== w || this.serveBoxSize.l !== l) {
+      const hw = w / 2, hl = l / 2;
+      const c = [[-hw, -hl], [hw, -hl], [hw, hl], [-hw, hl]];
+      const pts = [];
+      for (let i = 0; i < 4; i++) {
+        const a = c[i], b = c[(i + 1) % 4];
+        pts.push(a[0], 0, a[1], b[0], 0, b[1]);
+      }
+      const geo = new THREE.BufferGeometry();
+      geo.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3));
+      this.serveBox.geometry.dispose();
+      this.serveBox.geometry = geo;
+      this.serveBox.computeLineDistances();
+      this.serveBoxSize = { w, l };
+    }
+    this.serveBox.position.set(cx, 0.03, cz);
+    this.serveBox.material.opacity = 0.55 + Math.sin(this.time * 3.2) * 0.35;
   }
 
   // ---- per-frame ---------------------------------------------------------

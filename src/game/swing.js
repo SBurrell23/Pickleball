@@ -89,7 +89,10 @@ export function updateSwing(sw, dt, tuning) {
 // Geometry of the sweet zone, also used by the HUD so the bar always matches
 // exactly what the resolver will score.
 export function sweetZone(sw, tuning, assist = 1) {
-  const scale = tuning.sweetScale * assist;
+  // The short bar produces a dink, so it widens with the dink stat even though
+  // it is mechanically a bar. The stat follows the shot, not the meter.
+  const stat = sw.mode === MODE.DRIVE ? tuning.driveSweet : tuning.dinkSweet;
+  const scale = stat * assist;
   const z = sw.zoneScale ?? 1;
   if (isBar(sw.mode)) {
     const base = ((SWING.DRIVE_SWEET_HI - SWING.DRIVE_SWEET_LO) * 0.5) * scale;

@@ -482,6 +482,15 @@ button.big span { font-size: 12px; color: var(--ink-soft); font-weight: 600; let
 }
 .tip span { display: block; font-size: 12.5px; line-height: 1.5; font-weight: 600; }
 
+.fixed-note {
+  margin: 10px 0 0;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--ink-soft);
+  font-weight: 600;
+  font-style: italic;
+}
+
 .picker { margin-top: 14px; }
 .picker-label {
   display: block;

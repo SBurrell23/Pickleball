@@ -520,10 +520,8 @@ export class Game {
           this.audio.pointWon(won);
           // Long rallies and put-aways earn a cheer; a serve fault does not.
           const earned = (e.rallyShots || 0) >= 8 || this.lastShotWasSmash;
-          if (earned) {
-            this.audio.cheer(0.5 + Math.min(0.5, (e.rallyShots || 0) / 30));
-            this.crowdHype = 1;
-          }
+          this.audio.cheer(earned ? 0.5 + Math.min(0.5, (e.rallyShots || 0) / 30) : 0.22);
+          this.crowdHype = earned ? 1 : Math.max(this.crowdHype, 0.45);
           this.lastShotWasSmash = false;
           this.hud.message(e.reason, 'info', 1.5);
           this.hud.setScore(e.score[0], e.score[1], e.serveTeam, mySide);

@@ -47,7 +47,7 @@ console.log(`  spread: ${spread.toFixed(1)} points between best and worst`);
 // beats its unmodified twin. If a stat does nothing, this sits at 50%.
 console.log('\n=== single-stat sensitivity vs an identical twin ===');
 const base = CHARACTERS.find((c) => c.id === 'volley');
-for (const stat of ['speed', 'power', 'reach', 'control', 'charge']) {
+for (const stat of ['speed', 'reach', 'control', 'drive', 'dink']) {
   for (const mult of [1.25, 0.75]) {
     const id = `probe_${stat}_${mult}`;
     CHARACTERS.push({

@@ -4,7 +4,7 @@ import { drawPortrait } from './portrait.js';
 import { CURSOR_STYLES, CURSOR_COLORS, drawReticle } from './reticle.js';
 
 const STAT_LABELS = {
-  speed: 'Speed', power: 'Power', reach: 'Reach', control: 'Control', charge: 'Charge',
+  speed: 'Speed', reach: 'Reach', control: 'Control', drive: 'Drive', dink: 'Dink',
 };
 
 // What each stat actually drives, written against the code rather than the
@@ -15,23 +15,27 @@ const STAT_TIPS = {
     title: 'Running speed',
     body: 'How fast you move and how far a dash carries you. Nothing else — it does not affect your shots.',
   },
-  power: {
-    title: 'Shot pace',
-    body: 'Multiplies the speed of every ball you hit, which shortens its flight time and flattens its arc. Less time for your opponent to read it.',
-  },
   reach: {
     title: 'Paddle reach',
-    body: 'How far from you the paddle can still meet the ball, sideways. How high you can reach comes from your size, not from this.',
+    body: 'How far the paddle can still meet the ball — both out to the side and overhead. High reach digs out wide balls and gets above floaters.',
   },
   control: {
     title: 'Accuracy',
-    body: 'Widens the sweet spot on every meter, and tightens how far a mistimed shot scatters from where you aimed.',
+    body: 'How close a mistimed shot still lands to where you aimed. High control means a scrappy touch does not become a wild one.',
   },
-  charge: {
-    title: 'Wind-up speed',
-    body: 'How fast both power bars fill, so how early the sweet spot arrives. High charge means you can still load a full shot off a fast ball.',
+  drive: {
+    title: 'Drive sweet spot',
+    body: 'Widens the sweet spot on the full power bar — the left-click shot. Makes the big swing easier to time cleanly.',
+  },
+  dink: {
+    title: 'Dink sweet spot',
+    body: 'Widens the sweet spot on the kitchen needle and on the short right-click bar. Both of your soft shots get easier to nail.',
   },
 };
+
+// Power and wind-up speed are the same for everyone, and the select screen
+// says so rather than leaving people to wonder why they are missing.
+const FIXED_NOTE = 'Shot power and wind-up speed are the same for every character.';
 
 const SCHEMA = {
   Graphics: [
@@ -423,7 +427,7 @@ export class Menus {
       </div>`).join('');
 
     const stats = Object.entries(sel.stats).map(([k, v]) => {
-      const pctv = Math.max(4, Math.min(100, ((v - 0.78) / 0.46) * 100));
+      const pctv = Math.max(4, Math.min(100, ((v - 0.86) / 0.50) * 100));
       const rel = Math.round((v - 1) * 100);
       const relTxt = rel === 0 ? 'average' : (rel > 0 ? '+' : '') + rel + '%';
       return `<div class="stat-row" data-tip="${k}" tabindex="0">
@@ -462,6 +466,7 @@ export class Menus {
           <h2>${sel.name} <small>${sel.title}</small></h2>
           <p class="blurb">${sel.blurb}</p>
           ${stats}
+          <p class="fixed-note">${FIXED_NOTE}</p>
           <label class="field">
             <span>Name</span>
             <input id="playerName" maxlength="14" placeholder="Player"

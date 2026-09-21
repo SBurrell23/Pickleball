@@ -56,25 +56,43 @@ wherever you are aiming, and locks to the swing side once you commit.
 
 ## Characters
 
-Six of them, and the stats are real multipliers on the simulation, not flavour:
+Six of them, and each is good at exactly one thing — the pick is a question
+about how you want to play, not which numbers are biggest. Shot power and
+wind-up speed are deliberately **not** stats: they are identical for everyone,
+because a power stat is an obvious pick rather than a choice.
+
+| Character | Specialty | |
+| --- | --- | --- |
+| Volley | All-rounder | Baseline in everything. |
+| Spot | Control | A mistimed shot still lands near where it was aimed. |
+| Zip | Speed | Runs and dashes faster. |
+| Stretch | Reach | Meets the ball further out, sideways *and* overhead. |
+| Bulwark | Dink | Wider sweet spot on the kitchen needle and the short bar. |
+| Ace | Drive | Wider sweet spot on the full power bar. |
 
 | Stat | What it actually drives |
 | --- | --- |
 | Speed | Top running speed and dash distance. Nothing to do with your shots. |
-| Power | The pace of every ball you hit, which shortens its flight time and flattens its arc. |
-| Reach | How far sideways the paddle can still meet the ball. Vertical reach comes from the character's size instead. |
-| Control | Widens the sweet spot on every meter, and tightens how far a mistimed shot scatters. |
-| Charge | How fast both power bars fill, so how early the sweet spot arrives. |
+| Reach | How far the paddle can meet the ball — both out to the side and overhead. |
+| Control | How close a mistimed shot still lands to where you aimed. |
+| Drive | Sweet-spot width on the full power bar. |
+| Dink | Sweet-spot width on the kitchen needle and the short bar. |
 
 Hovering a stat in the character screen explains it. The roster was tuned
 against measurement rather than feel — `tools/roster.mjs` plays a round-robin
 and then a single-stat sensitivity sweep, moving one stat on a clone and
-playing it against its unmodified twin. That is how the spreads were set: a 25%
-reach advantage alone won 90% of games, so reach has a deliberately narrow
-range, while power needed widening. It also caught two outright bugs — power
-above 1.0 did nothing at all because the flight-time lerp clamped it, and the
-bots overshot their intercept point, which made a *faster* character measure as
-a worse one.
+playing it against its unmodified twin. That is how the ranges were set: reach
+is the strongest single lever in the game, so its spread is deliberately the
+narrowest, while control needed its effect nearly doubled before it decided
+anything at all.
+
+It also caught two outright bugs. Power above 1.0 did nothing, because the
+flight-time lerp clamped it — a power character's stat stopped mattering the
+moment they struck a ball cleanly. And the bots ran flat out until 10cm from
+their target and overshot it, which made a *faster* character measure as a
+worse one. Worth knowing when reading those numbers: they are bot-versus-bot,
+and the bots time a drive well regardless of its sweet-spot width, so Drive and
+Dink matter more for a human than the sweep suggests.
 
 ## Rules
 

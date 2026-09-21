@@ -80,6 +80,10 @@ export class Sim {
         lastContact: -99,
         speed: ch.stats.speed,
         reach: PLAY.REACH_BASE * ch.stats.reach,
+        // Reach is both: a long player covers wide balls and high ones. Body
+        // scale contributes but is damped, otherwise a tall character with a
+        // high reach stat compounds into an unreachable advantage overhead.
+        reachY: PLAY.REACH_HEIGHT * (0.55 + 0.45 * ch.build.scale) * ch.stats.reach,
         scale: ch.build.scale,
         anim: { lean: 0, swing: 0, run: 0 },
       };
@@ -474,7 +478,7 @@ export class Sim {
   // ---- swing resolution --------------------------------------------------
 
   canReach(p, bp) {
-    if (bp.y > PLAY.REACH_HEIGHT * p.scale) return false;
+    if (bp.y > p.reachY) return false;
     if (bp.y < 0.03) return false;
     const dx = bp.x - p.x, dz = bp.z - p.z;
     const horiz = Math.hypot(dx, dz);
@@ -602,16 +606,12 @@ export class Sim {
     };
 
     let T = Math.max(env.min, env.base - (env.base - env.min) * Math.min(1, power));
-    // Power over 1.0 is overdrive: it pushes the flight time below the normal
-    // floor. Without this the lerp clamped at 1 and a power character's stat
-    // stopped mattering the moment they struck the ball cleanly.
-    if (power > 1) T = Math.max(env.min * 0.76, T * (1 - (power - 1) * 0.42));
     // Mistimed contact floats the ball. Sitting it up is what turns a bad
     // touch into an attackable ball for the opponent, so the timing bars
     // matter beyond raw pace.
     if (quality === QUALITY.WEAK) T *= 1.45;
     else if (quality === QUALITY.OK) T *= 1.13;
-    const spin = env.spin * (0.55 + 0.6 * Math.min(1.25, power));
+    const spin = env.spin * (0.55 + 0.6 * Math.min(1, power));
     const clearance = NET_CLEARANCE[shot] ?? 0.12;
 
     // A well-struck ball finds the arc that clears the net; a mistimed one does not.
