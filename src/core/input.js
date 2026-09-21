@@ -118,7 +118,8 @@ export class Input {
   down(code) { return this.keys.has(code); }
 
   get dash() { return this.keys.has('ShiftLeft') || this.keys.has('ShiftRight'); }
-  // Right button is its own swing now, so only Space softens a shot.
+  // Only meaningful on a drive, where it turns the swing into a lob. The
+  // short bar ignores it -- a dink is already the soft shot.
   get soft() { return this.keys.has('Space'); }
 
   releaseAll() {

@@ -147,13 +147,16 @@ export function releaseSwing(sw, tuning, assist = 1) {
 export function classifyShot({ mode, soft, beforeBounce, ballHeight, netHeight, isServe, quality }) {
   if (isServe) return SHOT.SERVE;
   if (mode === MODE.QUICK) {
-    // Always a soft ball. Deep in the court that reads as a drop; at the net
-    // it is a dink, and a high one can still be punched away.
+    // Always a dink. Space does nothing here: the short bar is already the
+    // soft option, and giving it a second softness modifier only made the
+    // two shots harder to tell apart. A high one can still be punched away.
     if (beforeBounce && ballHeight > netHeight + 0.42 && quality === QUALITY.PERFECT) {
       return SHOT.SMASH;
     }
-    return soft ? SHOT.DROP : SHOT.DINK;
+    return SHOT.DINK;
   }
+  // Space still lifts a drive into a lob, which is the one place it earns
+  // its keep -- it turns the big swing into a genuinely different shot.
   if (soft) return SHOT.LOB;
   if (beforeBounce && ballHeight > netHeight + 0.55 && quality === QUALITY.PERFECT) {
     return SHOT.SMASH;

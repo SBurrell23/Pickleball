@@ -12,14 +12,13 @@ const FLIGHT = {
   [SHOT.SMASH]:  { base: 0.70, min: 0.34, spin:  1.35 },
   [SHOT.VOLLEY]: { base: 1.02, min: 0.64, spin:  0.55 },
   [SHOT.DINK]:   { base: 1.06, min: 0.80, spin: -0.60 },
-  [SHOT.DROP]:   { base: 1.38, min: 1.00, spin: -0.90 },
   [SHOT.LOB]:    { base: 2.15, min: 1.60, spin: -0.30 },
   [SHOT.SERVE]:  { base: 1.38, min: 0.95, spin:  0.20 },
 };
 
 const NET_CLEARANCE = {
   [SHOT.DRIVE]: 0.11, [SHOT.SMASH]: 0.06, [SHOT.VOLLEY]: 0.10,
-  [SHOT.DINK]: 0.17, [SHOT.DROP]: 0.20, [SHOT.LOB]: 0.55,
+  [SHOT.DINK]: 0.17, [SHOT.LOB]: 0.55,
   [SHOT.SERVE]: 0.22,
 };
 

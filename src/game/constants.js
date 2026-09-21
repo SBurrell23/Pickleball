@@ -108,7 +108,6 @@ export const SHOT = {
   DINK: 'dink',
   VOLLEY: 'volley',
   LOB: 'lob',
-  DROP: 'drop',
   SERVE: 'serve',
   SMASH: 'smash',
 };

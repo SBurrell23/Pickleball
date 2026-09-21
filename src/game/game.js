@@ -730,7 +730,7 @@ export class Game {
       if (this.sim.phase === PHASE.SERVE) {
         shotLabel = this.swing.mode === MODE.QUICK ? 'SAFE SERVE' : 'SERVE';
       } else if (this.swing.mode === MODE.QUICK) {
-        shotLabel = this.input.soft ? 'DROP SHOT' : 'DINK SHOT';
+        shotLabel = 'DINK SHOT';
       } else {
         shotLabel = this.input.soft ? 'LOB' : 'DRIVE SHOT';
       }
