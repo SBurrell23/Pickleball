@@ -44,7 +44,6 @@ class App {
     this.net = null;
     this.paused = false;
     this.lastTime = performance.now();
-    this.ready = false;
 
     this.input.on('press', (b) => this.game && !this.paused && this.game.onPress(b));
     this.input.on('release', (b) => this.game && this.game.onRelease(b));
@@ -134,14 +133,14 @@ class App {
       if (h) {
         roster.push({
           id: h.id || 'h' + i, name: h.name || 'Player', charId: h.charId,
-          team: i % 2, slot: Math.floor(i / 2), bot: false, netRec: h.netRec || null,
+          team: i % 2, bot: false, netRec: h.netRec || null,
         });
       } else {
         const used = new Set(roster.map((r) => r.charId));
         const pick = CHARACTERS.find((c) => !used.has(c.id)) || CHARACTERS[0];
         roster.push({
           id: 'bot' + i, name: BOT_NAMES[i % BOT_NAMES.length], charId: pick.id,
-          team: i % 2, slot: Math.floor(i / 2), bot: true, difficulty: level,
+          team: i % 2, bot: true, difficulty: level,
         });
       }
     }
@@ -342,7 +341,7 @@ class App {
     // Each client needs to know which slot is theirs.
     const wire = roster.map((r) => ({
       id: r.id, name: r.name, charId: r.charId, team: r.team,
-      slot: r.slot, bot: r.bot, difficulty: r.difficulty,
+      bot: r.bot, difficulty: r.difficulty,
     }));
     for (const rec of this.net.peerList()) {
       const idx = roster.findIndex((r) => r.netRec === rec);

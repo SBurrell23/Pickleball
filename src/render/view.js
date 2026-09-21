@@ -71,7 +71,6 @@ export class View {
     this._shake = new THREE.Vector3();
     this._plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -0.02);
     this._ray = new THREE.Raycaster();
-    this._v = new THREE.Vector3();
 
     this.buildLights();
     this.createRenderer();
@@ -264,17 +263,6 @@ export class View {
       // Pointing at the sky: fall back to a deep target straight ahead.
       out.set(0, 0.02, -this.side * COURT.HALF_L * 0.8);
     }
-    return out;
-  }
-
-  // Project a world point to screen pixels, for HUD anchors.
-  toScreen(v3, out) {
-    this._v.copy(v3).project(this.camera);
-    const w = this.renderer.domElement.clientWidth;
-    const h = this.renderer.domElement.clientHeight;
-    out.x = (this._v.x * 0.5 + 0.5) * w;
-    out.y = (-this._v.y * 0.5 + 0.5) * h;
-    out.visible = this._v.z < 1;
     return out;
   }
 

@@ -104,6 +104,22 @@ function pickTarget(sim, p, st, aggressive) {
   return { x: tx, z: tz };
 }
 
+// In doubles both partners can see the same ball coming and both chase it,
+// which leaves the court open and sometimes leaves nobody committed. Whoever
+// is closer to the intercept calls it; the index is the tie-break so both
+// sides reach the same answer.
+function ballIsMine(sim, p, arrival) {
+  if (!arrival) return true;
+  const myD = Math.hypot(p.x - arrival.x, p.z - arrival.z);
+  for (const mate of sim.players) {
+    if (mate === p || mate.team !== p.team) continue;
+    const d = Math.hypot(mate.x - arrival.x, mate.z - arrival.z);
+    if (d < myD - 0.2) return false;
+    if (Math.abs(d - myD) <= 0.2 && mate.idx < p.idx) return false;
+  }
+  return true;
+}
+
 // True when hitting the ball right now would be a fault.
 function volleyIllegal(sim, p) {
   return sim.ball.bouncesSinceHit === 0
@@ -199,7 +215,16 @@ export function updateBot(sim, p, st, dt) {
   }
   if (st.reactDelay > 0) st.reactDelay -= dt;
 
-  if (arrival && st.reactDelay <= 0) {
+  const mine = ballIsMine(sim, p, arrival);
+  st.mine = mine;
+
+  if (arrival && !mine) {
+    // Partner has it: cover the other half instead of crowding them.
+    const away = -(Math.sign(arrival.x) || 1);
+    goalX = away * COURT.HALF_W * 0.45;
+    goalZ = p.side * (COURT.KITCHEN + 0.7);
+    st.heldGoal = { x: goalX, z: goalZ };
+  } else if (arrival && st.reactDelay <= 0) {
     goalX = arrival.x + st.posErr.x;
     // Stand a little behind the ball so the swing has room.
     goalZ = arrival.z + p.side * 0.30 + st.posErr.z;
@@ -248,7 +273,7 @@ export function updateBot(sim, p, st, dt) {
     return inp;
   }
 
-  if (p.swingState === SWINGSTATE.IDLE && arrival) {
+  if (p.swingState === SWINGSTATE.IDLE && arrival && mine) {
     // Never start a swing that would land on an illegal volley.
     if (arrival.bounced === 0 && (sim.inKitchen(p) || sim.ball.shotCount < 3)) return inp;
 

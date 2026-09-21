@@ -168,7 +168,10 @@ export class Net {
     const pid = conn.peer;
     let rec = this.peers.get(pid);
     if (!rec) {
-      rec = { id: pid, ctrl: null, fast: null, ping: new PingTracker(), profile: null, slot: -1, alive: true, lastInput: null, inputAck: 0 };
+      rec = {
+        id: pid, ctrl: null, fast: null, ping: new PingTracker(),
+        profile: null, alive: true, lastInput: null, lastAppliedSeq: 0,
+      };
       this.peers.set(pid, rec);
     }
     if (conn.label === 'fast') rec.fast = conn;
@@ -324,7 +327,6 @@ export class Net {
         break;
       case 'in':
         rec.lastInput = msg;
-        rec.inputAck = msg.s;
         this.h.onInput?.(rec, msg);
         break;
       case 'sw':

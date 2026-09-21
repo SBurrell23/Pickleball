@@ -13,13 +13,12 @@ const FLIGHT = {
   [SHOT.DROP]:   { base: 1.15, min: 0.80, spin: -0.90 },
   [SHOT.LOB]:    { base: 1.90, min: 1.35, spin: -0.30 },
   [SHOT.SERVE]:  { base: 1.05, min: 0.72, spin:  0.20 },
-  [SHOT.BLOCK]:  { base: 0.88, min: 0.55, spin: -0.20 },
 };
 
 const NET_CLEARANCE = {
   [SHOT.DRIVE]: 0.11, [SHOT.SMASH]: 0.06, [SHOT.VOLLEY]: 0.10,
   [SHOT.DINK]: 0.17, [SHOT.DROP]: 0.20, [SHOT.LOB]: 0.55,
-  [SHOT.SERVE]: 0.22, [SHOT.BLOCK]: 0.14,
+  [SHOT.SERVE]: 0.22,
 };
 
 export const PHASE = { SERVE: 'serve', RALLY: 'rally', POINT: 'point', GAMEOVER: 'gameover' };
@@ -67,7 +66,6 @@ export class Sim {
         netRec: p.netRec || null,
         team,
         side: sideOf(team),
-        slot: p.slot ?? 0,
         x: 0, z: sideOf(team) * (COURT.HALF_L - 0.6),
         vx: 0, vz: 0,
         facing: sideOf(team) > 0 ? Math.PI : 0,
@@ -80,7 +78,6 @@ export class Sim {
         charging: false,
         chargeVis: 0,
         special: 0,
-        kitchenLock: 0,
         lastContact: -99,
         speed: ch.stats.speed,
         reach: PLAY.REACH_BASE * ch.stats.reach,
@@ -94,7 +91,7 @@ export class Sim {
       spin: 0, sideSpin: 0,
       live: false, held: true,
       lastHit: -1, lastTeam: -1,
-      shotCount: 0, bouncesSinceHit: 0, bounceSide: 0,
+      shotCount: 0, bouncesSinceHit: 0,
     };
     this.ballHistory.length = 0;
     this.setupServe();
@@ -131,7 +128,7 @@ export class Sim {
       p.vx = 0; p.vz = 0;
       p.charging = false; p.chargeVis = 0;
       p.swingState = SWINGSTATE.IDLE; p.swingT = 0; p.pending = null;
-      p.dashT = 0; p.kitchenLock = 0;
+      p.dashT = 0;
       p.stamina = Math.min(PLAY.STAMINA_MAX, p.stamina + 30);
       p.facing = p.side > 0 ? Math.PI : 0;
     }
@@ -166,7 +163,7 @@ export class Sim {
     b.v.x = 0; b.v.y = 0; b.v.z = 0;
     b.spin = 0; b.sideSpin = 0;
     b.lastHit = -1; b.lastTeam = -1;
-    b.shotCount = 0; b.bouncesSinceHit = 0; b.bounceSide = 0;
+    b.shotCount = 0; b.bouncesSinceHit = 0;
     this.rallyShots = 0;
     this.phase = PHASE.SERVE;
     this.phaseT = 0;
@@ -283,8 +280,6 @@ export class Sim {
     const maxX = COURT.HALF_W + COURT.RUNOFF;
     p.x = Math.max(-maxX, Math.min(maxX, p.x));
 
-    if (p.kitchenLock > 0) p.kitchenLock -= dt;
-
     const dx = this.ball.p.x - p.x, dz = this.ball.p.z - p.z;
     const want = Math.atan2(dx, dz);
     let d = want - p.facing;
@@ -393,7 +388,6 @@ export class Sim {
     const side = Math.sign(z) || 1;
     const good = this.inBounds(x, z);
     b.bouncesSinceHit++;
-    b.bounceSide = side;
     this.emit({ type: 'bounce', pos: { x, y: b.p.y, z }, inBounds: good, side });
 
     const hitterTeam = b.lastTeam;

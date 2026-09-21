@@ -40,10 +40,9 @@ export class Game {
     this.running = false;
     this.paused = false;
     this.myIdx = 0;
-    this.stats = { hits: 0, perfect: 0, winners: 0, longest: 0, faults: 0 };
+    this.stats = { hits: 0, perfect: 0, longest: 0, faults: 0 };
 
     this.swing = createSwingState();
-    this.swingMode = MODE.DRIVE;
     this.aim = new THREE.Vector3(0, 0.02, 0);
     this.aimWorld = new THREE.Vector3();
     this.lastNeedleDir = 1;
@@ -53,8 +52,6 @@ export class Game {
     this.inputHistory = [];
     this.inputAccum = 0;
     this.snapAccum = 0;
-    this.lastSentInput = null;
-    this.screenPt = { x: 0, y: 0, visible: false };
   }
 
   // ---- setup -------------------------------------------------------------
@@ -84,10 +81,7 @@ export class Game {
     this.view.snapCamera(me.x, me.z);
 
     // Client-side prediction state for the local player.
-    if (!this.isAuthority) {
-      this.pred = { ...me };
-      this.predRender = { x: me.x, z: me.z };
-    }
+    if (!this.isAuthority) this.pred = { ...me };
 
     this.applyGlow();
     this.running = true;
@@ -172,7 +166,6 @@ export class Game {
     if (this.swing.active) return;
     // Serving always uses the power meter -- there is no incoming ball to react to.
     const mode = this.sim.phase === PHASE.SERVE ? MODE.DRIVE : this.currentSwingMode();
-    this.swingMode = mode;
     beginSwing(this.swing, mode, this.myTuning);
     this.audio.chargeStart();
   }

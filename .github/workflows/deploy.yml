@@ -22,7 +22,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '22'
       # No build step: the game ships as plain ES modules. These run the
       # headless harnesses so a broken import or a rules regression fails the
       # deploy instead of reaching the site.

@@ -108,7 +108,7 @@ function buildPaddle(colors) {
   return g;
 }
 
-function limb(len, r1, r2, color) {
+function limb(len, r1, color) {
   const g = new THREE.Group();
   const mesh = new THREE.Mesh(new THREE.CapsuleGeometry(r1, len - r1 * 2, 3, 8), m(color));
   mesh.position.y = -len / 2;
@@ -158,11 +158,11 @@ export function buildCharacter(def) {
     const sx = side === 'L' ? -1 : 1;
     const shoulder = new THREE.Group();
     shoulder.position.set(sx * 0.245 * b.bulk, 1.42, 0);
-    const upper = limb(0.30, 0.058, 0.05, c.skin);
+    const upper = limb(0.30, 0.058, c.skin);
     shoulder.add(upper);
     const elbow = new THREE.Group();
     elbow.position.y = -0.30;
-    const fore = limb(0.27, 0.05, 0.045, c.skin);
+    const fore = limb(0.27, 0.05, c.skin);
     elbow.add(fore);
     upper.add(elbow);
     body.add(shoulder);
@@ -179,11 +179,11 @@ export function buildCharacter(def) {
     const sx = side === 'L' ? -1 : 1;
     const hip = new THREE.Group();
     hip.position.set(sx * 0.115 * b.bulk, 0.86, 0);
-    const thigh = limb(0.44, 0.075, 0.062, c.secondary);
+    const thigh = limb(0.44, 0.075, c.secondary);
     hip.add(thigh);
     const knee = new THREE.Group();
     knee.position.y = -0.44;
-    const shin = limb(0.40, 0.06, 0.05, c.secondary);
+    const shin = limb(0.40, 0.06, c.secondary);
     knee.add(shin);
     thigh.add(knee);
     const shoe = new THREE.Mesh(
@@ -198,12 +198,10 @@ export function buildCharacter(def) {
   root.userData = {
     def, body, head, torso, arms, legs, paddle,
     runPhase: Math.random() * 6.283,
-    stepFlag: false,
   };
   return root;
 }
 
-const EPS = 0.0001;
 function damp(cur, target, lambda, dt) {
   return cur + (target - cur) * (1 - Math.exp(-lambda * dt));
 }
@@ -297,8 +295,3 @@ export function animateCharacter(rig, p, dt, time) {
   return step;
 }
 
-// World-space position of the paddle face, used to spawn hit effects.
-export function paddleWorldPos(rig, out = new THREE.Vector3()) {
-  const face = rig.userData.paddle.userData.face;
-  return face.getWorldPosition(out);
-}

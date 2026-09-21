@@ -66,8 +66,6 @@ export const RULES = {
   DOUBLE_BOUNCE_SHOTS: 2,   // serve + return must both bounce
 };
 
-export const SIDE = { A: -1, B: 1 };
-
 // Shot archetypes produced by the swing system.
 export const SHOT = {
   DRIVE: 'drive',
@@ -76,7 +74,6 @@ export const SHOT = {
   LOB: 'lob',
   DROP: 'drop',
   SERVE: 'serve',
-  BLOCK: 'block',
   SMASH: 'smash',
 };
 
