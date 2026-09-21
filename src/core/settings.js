@@ -21,7 +21,6 @@ export const DEFAULTS = {
   muteOnBlur: true,
 
   // Gameplay / feel
-  meterAssist: 1.0,      // 1.0 = normal sweet spots, up to 1.6 = forgiving
   difficulty: 'normal',  // easy | normal | hard
   aimSensitivity: 1.0,
   // The OS cursor is hidden during play, so the reticle is not optional --
@@ -50,7 +49,7 @@ function clampNum(v, lo, hi, dflt) {
 const RANGES = {
   renderScale: [0.4, 1.0], particles: [0, 1.5], shake: [0, 1],
   master: [0, 1], sfx: [0, 1], music: [0, 1], ambience: [0, 1],
-  meterAssist: [0.7, 1.7], aimSensitivity: [0.3, 2.5], cursorScale: [0.7, 1.8],
+  aimSensitivity: [0.3, 2.5], cursorScale: [0.7, 1.8],
 };
 
 const ENUMS = {

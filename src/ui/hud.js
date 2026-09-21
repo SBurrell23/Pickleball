@@ -155,8 +155,7 @@ export class Hud {
   _drawSwingMeter(g, state) {
     const sw = state.swing;
     const tune = state.tuning;
-    const assist = this.settings.get('meterAssist');
-    const zone = sweetZone(sw, tune, assist);
+    const zone = sweetZone(sw, tune);
     const pal = this._palette();
 
     const quick = sw.mode === MODE.QUICK;

@@ -79,11 +79,10 @@ export function updateSwing(sw, dt, tuning) {
 
 // Geometry of the sweet zone, also used by the HUD so the bar always matches
 // exactly what the resolver will score.
-export function sweetZone(sw, tuning, assist = 1) {
+export function sweetZone(sw, tuning) {
   // The stat follows the shot, not the meter: the short bar produces a dink,
   // so it widens with the dink stat even though it is mechanically a bar.
-  const stat = sw.mode === MODE.QUICK ? tuning.dinkSweet : tuning.driveSweet;
-  const scale = stat * assist;
+  const scale = sw.mode === MODE.QUICK ? tuning.dinkSweet : tuning.driveSweet;
   const z = (sw.zoneScale ?? 1) * (sw.lobBonus ?? 1);
   const base = ((SWING.DRIVE_SWEET_HI - SWING.DRIVE_SWEET_LO) * 0.5) * scale;
   const half = base * z;
@@ -108,10 +107,10 @@ function gradeDistance(d, zone) {
 }
 
 // Resolve a button release into a shot. Returns null if the swing was not live.
-export function releaseSwing(sw, tuning, assist = 1) {
+export function releaseSwing(sw, tuning) {
   if (!sw.active) return null;
   sw.active = false;
-  const zone = sweetZone(sw, tuning, assist);
+  const zone = sweetZone(sw, tuning);
   let quality;
   let powerFrac;
 

@@ -208,8 +208,7 @@ export class Game {
   onRelease(button) {
     if (!this.swing.active || button !== this.swingButton) return;
     const tune = this.myTuning;
-    const assist = this.settings.get('meterAssist');
-    const res = releaseSwing(this.swing, tune, assist);
+    const res = releaseSwing(this.swing, tune);
     this.audio.chargeStop();
     if (!res) return;
 
@@ -286,7 +285,7 @@ export class Game {
     if (this.swing.active && !this.paused) {
       updateSwing(this.swing, dt, this.myTuning);
       this.applyLobBonus();
-      const zone = sweetZone(this.swing, this.myTuning, this.settings.get('meterAssist'));
+      const zone = sweetZone(this.swing, this.myTuning);
       const pos = this.swing.t;
       const inSweet = Math.abs(pos - zone.center) <= zone.half;
       this.audio.chargeUpdate(Math.min(1, this.swing.t), inSweet);

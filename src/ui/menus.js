@@ -69,10 +69,6 @@ const SCHEMA = {
   Gameplay: [
     { key: 'difficulty', label: 'CPU difficulty', type: 'select',
       options: [['easy', 'Easy'], ['normal', 'Normal'], ['hard', 'Hard']] },
-    { key: 'meterAssist', label: 'Timing window', type: 'range',
-      min: 0.7, max: 1.7, step: 0.1,
-      fmt: (v) => (v < 0.95 ? 'Tight' : v < 1.15 ? 'Standard' : v < 1.45 ? 'Wide' : 'Very wide'),
-      note: 'Widens the sweet spot on both meters. Purely a comfort option.' },
     { key: 'cameraMode', label: 'Camera', type: 'select',
       options: [['follow', 'Follow'], ['fixed', 'Fixed'], ['broadcast', 'Broadcast']] },
     { key: 'aimSensitivity', label: 'Aim sensitivity', type: 'range',
