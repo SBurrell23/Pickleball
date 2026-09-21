@@ -40,70 +40,115 @@ function canvasTex(w, h, draw, repeat = null) {
   return t;
 }
 
+// Drawing a feature near a tile edge leaves a seam, so anything large enough
+// to notice is drawn nine times at every wrap offset. Positions are generated
+// up front so all nine passes draw the identical thing.
+function tiled(g, w, h, features, draw) {
+  for (const dx of [-w, 0, w]) {
+    for (const dy of [-h, 0, h]) {
+      g.save();
+      g.translate(dx, dy);
+      for (const f of features) draw(f);
+      g.restore();
+    }
+  }
+}
+
 // Acrylic court paint is sand-filled, so it has a fine grain rather than a
-// flat colour. Kept subtle on purpose: enough to catch the light and stop the
-// big painted areas reading as plastic, not enough to look noisy.
-function courtGrain(base, light, dark, repeat, density = 11000) {
-  return canvasTex(256, 256, (g, w, h) => {
+// flat colour.
+//
+// The grit has to be sized in WORLD terms, not texture terms: at this camera a
+// metre of court is only about 70 screen pixels, so anything finer than
+// roughly a centimetre averages out to flat no matter how much of it there is.
+// Hence a 512px tile covering about 1.5m -- large enough that the repeat is
+// hard to spot, coarse enough that the grain survives to the screen.
+function courtGrain(base, light, dark, repeat, density = 2600) {
+  return canvasTex(512, 512, (g, w, h) => {
     g.fillStyle = base;
     g.fillRect(0, 0, w, h);
 
-    // Deliberately no large-scale features. Broad blobs are exactly what makes
-    // a tiled texture readable AS tiles, and the kitchen is a small enough
-    // strip that any of them show up as an obvious repeat. Uniform fine grit
-    // tiles invisibly.
-    // Grit: single-pixel, half lighter and half darker, so it reads as
-    // texture rather than as a tint.
+    const blobs = [];
+    for (let i = 0; i < 26; i++) {
+      blobs.push({
+        x: Math.random() * w, y: Math.random() * h,
+        r: 26 + Math.random() * 70,
+        c: Math.random() < 0.5 ? light : dark,
+        a: 0.022 + Math.random() * 0.028,
+      });
+    }
+    tiled(g, w, h, blobs, (f) => {
+      g.globalAlpha = f.a;
+      g.fillStyle = f.c;
+      g.beginPath();
+      g.arc(f.x, f.y, f.r, 0, Math.PI * 2);
+      g.fill();
+    });
+
     for (let i = 0; i < density; i++) {
-      g.globalAlpha = 0.05 + Math.random() * 0.13;
+      g.globalAlpha = 0.10 + Math.random() * 0.26;
       g.fillStyle = Math.random() < 0.5 ? light : dark;
-      const r = Math.random() < 0.85 ? 1 : 2;
+      const r = 2 + Math.random() * 3.5;
       g.fillRect(Math.random() * w, Math.random() * h, r, r);
     }
     g.globalAlpha = 1;
   }, repeat);
 }
 
-// The apron is a laid sport surface, not turf: coarse aggregate grain, patchy
-// wear, and faint squeegee streaks from when it was rolled out.
+// The apron is a laid sport surface: coarse aggregate grain and patchy wear.
+// Every feature big enough to see is wrapped, because at this tile size an
+// unwrapped blob reads as a grid of squares across the whole surround.
 function apronTexture() {
   return canvasTex(512, 512, (g, w, h) => {
     g.fillStyle = '#3d4f41';
     g.fillRect(0, 0, w, h);
 
-    // Broad patchiness so large areas are not uniform.
-    for (let i = 0; i < 46; i++) {
-      g.globalAlpha = 0.05 + Math.random() * 0.07;
-      g.fillStyle = Math.random() < 0.5 ? '#4a6040' : '#2e3c31';
+    const patches = [];
+    for (let i = 0; i < 30; i++) {
+      patches.push({
+        x: Math.random() * w, y: Math.random() * h,
+        r: 40 + Math.random() * 100,
+        c: Math.random() < 0.5 ? '#4a6040' : '#2e3c31',
+        a: 0.025 + Math.random() * 0.04,
+      });
+    }
+    tiled(g, w, h, patches, (f) => {
+      g.globalAlpha = f.a;
+      g.fillStyle = f.c;
       g.beginPath();
-      g.arc(Math.random() * w, Math.random() * h, 40 + Math.random() * 110, 0, Math.PI * 2);
+      g.arc(f.x, f.y, f.r, 0, Math.PI * 2);
       g.fill();
-    }
+    });
 
-    // Squeegee streaks, all roughly one direction.
+    const streaks = [];
+    for (let i = 0; i < 80; i++) {
+      streaks.push({
+        x: Math.random() * w, y: Math.random() * h,
+        len: 70 + Math.random() * 180, dy: (Math.random() - 0.5) * 10,
+        c: Math.random() < 0.5 ? '#50664a' : '#303e33',
+        wdt: 1.5 + Math.random() * 4,
+        a: 0.022 + Math.random() * 0.035,
+      });
+    }
     g.lineCap = 'round';
-    for (let i = 0; i < 150; i++) {
-      const y = Math.random() * h;
-      g.globalAlpha = 0.03 + Math.random() * 0.05;
-      g.strokeStyle = Math.random() < 0.5 ? '#50664a' : '#303e33';
-      g.lineWidth = 1 + Math.random() * 4;
+    tiled(g, w, h, streaks, (f) => {
+      g.globalAlpha = f.a;
+      g.strokeStyle = f.c;
+      g.lineWidth = f.wdt;
       g.beginPath();
-      const x = Math.random() * w;
-      g.moveTo(x, y);
-      g.lineTo(x + 60 + Math.random() * 190, y + (Math.random() - 0.5) * 8);
+      g.moveTo(f.x, f.y);
+      g.lineTo(f.x + f.len, f.y + f.dy);
       g.stroke();
-    }
+    });
 
-    // Aggregate grain: the close-up read.
-    for (let i = 0; i < 16000; i++) {
-      g.globalAlpha = 0.06 + Math.random() * 0.20;
+    for (let i = 0; i < 3400; i++) {
+      g.globalAlpha = 0.09 + Math.random() * 0.22;
       const t = Math.random();
       g.fillStyle = t < 0.45 ? '#4d6347' : t < 0.8 ? '#2b382d' : '#5a7052';
-      const r = 0.7 + Math.random() * 1.7;
+      const r = 2 + Math.random() * 3.5;
       g.fillRect(Math.random() * w, Math.random() * h, r, r);
     }
     g.globalAlpha = 1;
-  }, [10, 10]);
+  }, [5, 8]);
 }
 
 function netTexture() {
@@ -176,7 +221,7 @@ export function buildCourt(quality = 'high') {
     new THREE.BoxGeometry(COURT.HALF_W * 2 + 0.02, 0.02, COURT.HALF_L * 2 + 0.02),
     mat(0x2f7fc4, { roughness: 0.9 })
   );
-  surface.material.map = courtGrain('#2f7fc4', '#5ba3dd', '#1d568e', [22, 48], 16000);
+  surface.material.map = courtGrain('#2f7fc4', '#5ba3dd', '#1d568e', [4, 9]);
   surface.position.y = 0.006;
   surface.receiveShadow = quality !== 'off';
   root.add(surface);
@@ -184,7 +229,7 @@ export function buildCourt(quality = 'high') {
   // The kitchen gets its own shade so the shot-type boundary is readable
   // from the play camera at a glance.
   const kitchenMat = mat(0xffffff, { roughness: 0.9 });
-  kitchenMat.map = courtGrain('#1d9c74', '#43c095', '#11634a', [22, 8], 16000);
+  kitchenMat.map = courtGrain('#1d9c74', '#43c095', '#11634a', [4, 1.4]);
   for (const s of [-1, 1]) {
     const k = new THREE.Mesh(
       new THREE.BoxGeometry(COURT.HALF_W * 2, 0.02, COURT.KITCHEN),
@@ -198,7 +243,7 @@ export function buildCourt(quality = 'high') {
   // Lines
   // The lines are painted on the same surface, so they carry the same grit.
   const lineMat = mat(0xffffff, { roughness: 0.7, emissive: 0x223344, emissiveIntensity: 0.10 });
-  lineMat.map = courtGrain('#f4f7fb', '#ffffff', '#ccd6e0', [4, 60], 9000);
+  lineMat.map = courtGrain('#f4f7fb', '#ffffff', '#ccd6e0', [1, 26], 700);
   const line = (x, z, w, l) => {
     const m = new THREE.Mesh(new THREE.BoxGeometry(w, 0.012, l), lineMat);
     m.position.set(x, 0.021, z);
