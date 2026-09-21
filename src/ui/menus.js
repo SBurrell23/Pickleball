@@ -68,7 +68,9 @@ const SCHEMA = {
   ],
   Gameplay: [
     { key: 'difficulty', label: 'CPU difficulty', type: 'select',
-      options: [['easy', 'Easy'], ['normal', 'Normal'], ['hard', 'Hard']] },
+      options: [['easy', 'Easy'], ['normal', 'Normal'], ['hard', 'Hard'],
+        ['extreme', 'Extreme']],
+      note: 'Extreme bots read the ball almost instantly, cover the whole court and only sprint for balls they would otherwise miss.' },
     { key: 'cameraMode', label: 'Camera', type: 'select',
       options: [['follow', 'Follow'], ['fixed', 'Fixed'], ['broadcast', 'Broadcast']] },
     { key: 'aimSensitivity', label: 'Aim sensitivity', type: 'range',
@@ -128,10 +130,17 @@ export class Menus {
   get visible() { return this.screen !== null; }
 
   show(name, data = {}) {
+    // Status and error lines belong to the screen that put them there. Merging
+    // data forward is what carried "Creating room..." out of the connecting
+    // screen and left it sitting under the lobby's player list.
+    const moved = this.screen !== name;
     this.screen = name;
-    this.data = { ...this.data, ...data };
+    this.data = moved
+      ? { ...this.data, status: '', error: '', ...data }
+      : { ...this.data, ...data };
     this.el.classList.add('open');
     this.render();
+    this.cb.onScreen?.(this.screen);
   }
 
   hide() {
@@ -139,6 +148,7 @@ export class Menus {
     this._renderedScreen = null;
     this.el.classList.remove('open');
     this.el.innerHTML = '';
+    this.cb.onScreen?.(null);
   }
 
   // ---- actions -----------------------------------------------------------
@@ -452,7 +462,8 @@ export class Menus {
         : inLobby ? 'Confirm' : 'Continue';
 
     const diff = this.settings.get('difficulty');
-    const DIFFS = [['easy', 'Easy'], ['normal', 'Normal'], ['hard', 'Hard']];
+    const DIFFS = [['easy', 'Easy'], ['normal', 'Normal'], ['hard', 'Hard'],
+      ['extreme', 'Extreme']];
     const modePicker = (this.pendingRoute === 'join' || inLobby) ? '' : `
       <div class="picker">
         <span class="picker-label">Match</span>

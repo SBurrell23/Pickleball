@@ -337,14 +337,26 @@ function buildSurrounds(quality) {
   const g = new THREE.Group();
   g.add(buildFence(quality));
 
-  // Bleachers down both sides.
+  // Bleachers down both sides and behind both baselines. The end banks are the
+  // ones that matter: the play camera looks straight down the court, so the
+  // side stands are out of frame for the whole match and a crowd only seated
+  // there may as well not exist.
   const standMat = mat(0x404a55, { roughness: 0.9 });
   for (const s of [-1, 1]) {
-    for (let r = 0; r < 4; r++) {
+    for (let r = 0; r < SIDE_ROWS; r++) {
       const bench = new THREE.Mesh(
         new THREE.BoxGeometry(0.9, 0.42, COURT.HALF_L * 1.7), standMat
       );
       bench.position.set(s * (APRON_X + 1.5 + r * 0.9), 0.21 + r * 0.42, 0);
+      bench.receiveShadow = quality === 'high';
+      g.add(bench);
+    }
+    for (let r = 0; r < END_ROWS; r++) {
+      const h = endRowY(r);
+      const bench = new THREE.Mesh(
+        new THREE.BoxGeometry(APRON_X * END_SPAN, h, 0.9), standMat
+      );
+      bench.position.set(0, h * 0.5, s * (APRON_Z + END_NEAR + r * 0.9));
       bench.receiveShadow = quality === 'high';
       g.add(bench);
     }
@@ -443,17 +455,83 @@ function buildFence(quality) {
 }
 
 // Instanced spectators: two coloured capsules each, bobbing slightly.
+// Celebration shape, in seconds: how long the cheer takes to sweep from one
+// end of the stand to the other, how fast a single seat gets to its feet, and
+// how long it takes to settle back down.
+const PARTY_SWEEP = 0.55;
+const PARTY_RISE = 0.22;
+const PARTY_FALL = 1.55;
+const ARM_LEN = 0.26;
+const ARM_UP = 2.85;     // radians from hanging to raised. Near-vertical on
+                         // purpose: at this size an arm held out at 45 looks
+                         // like a stick beside the body, and only a narrow V
+                         // above the head reads as somebody cheering
+const ARM_OUT = 0.185;   // shoulder offset -- must clear the 0.17 body radius,
+                         // or the arms sit inside the torso and never show
+const IDENT_Q = new THREE.Quaternion();
+
+const SIDE_ROWS = 4, SIDE_PER = 26;
+const END_ROWS = 3, END_PER = 22;
+const END_SPAN = 2.2;    // end bank width, in apron half-widths
+const END_NEAR = 1.1;    // first end row, measured out from the apron edge
+
+// Apron height, like the side banks. Raking the end stand pushed the crowd up
+// and straight out of the top of the frame: the play camera looks down the
+// court, so higher seats read as further away, not more prominent.
+function endRowY(r) { return 0.42 + r * 0.42; }
+
+// Every seat in the arena, with `along` saying how far down its own bank it
+// sits (0..1). That is what a celebration sweeps across, so it has to be the
+// position along the stand rather than a world axis -- the end banks run
+// across x, the side banks down z.
+function seatingPlan() {
+  const out = [];
+  for (const s of [-1, 1]) {
+    for (let r = 0; r < SIDE_ROWS; r++) {
+      for (let k = 0; k < SIDE_PER; k++) {
+        const along = k / (SIDE_PER - 1);
+        out.push({
+          x: s * (APRON_X + 1.5 + r * 0.9),
+          y: 0.42 + r * 0.42,
+          z: (along - 0.5) * COURT.HALF_L * 1.7,
+          along: s > 0 ? along : 1 - along,
+        });
+      }
+    }
+    for (let r = 0; r < END_ROWS; r++) {
+      for (let k = 0; k < END_PER; k++) {
+        const along = k / (END_PER - 1);
+        out.push({
+          x: (along - 0.5) * APRON_X * END_SPAN,
+          y: endRowY(r),
+          z: s * (APRON_Z + END_NEAR + r * 0.9),
+          along: s > 0 ? along : 1 - along,
+        });
+      }
+    }
+  }
+  return out;
+}
+
+function seatCount() {
+  return (SIDE_ROWS * SIDE_PER + END_ROWS * END_PER) * 2;
+}
+
 function buildCrowd() {
   const group = new THREE.Group();
   group.name = 'crowd';
-  const rows = 4, perRow = 26;
-  const count = rows * perRow * 2;
+  const count = seatCount();
   const bodyGeo = new THREE.CapsuleGeometry(0.17, 0.26, 3, 6);
   const headGeo = new THREE.SphereGeometry(0.135, 7, 6);
+  // Arms pivot at the shoulder, so the geometry is shifted to hang below its
+  // own origin. One rotation then swings an arm from hanging to raised with no
+  // extra bookkeeping.
+  const armGeo = new THREE.CapsuleGeometry(0.042, ARM_LEN - 0.084, 3, 5);
+  armGeo.translate(0, -ARM_LEN * 0.5, 0);
   const bodies = new THREE.InstancedMesh(bodyGeo, mat(0xffffff, { flat: true }), count);
   const heads = new THREE.InstancedMesh(headGeo, mat(0xffffff, { flat: true }), count);
-  bodies.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-  heads.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  const arms = new THREE.InstancedMesh(armGeo, mat(0xffffff, { flat: true }), count * 2);
+  for (const im of [bodies, heads, arms]) im.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
 
   const shirt = [0xd9534f, 0x5bc0de, 0xf0ad4e, 0x5cb85c, 0x9b59b6, 0xecf0f1, 0x34495e];
   const skin = [0xf0c8a0, 0xd8a074, 0xb5764d, 0x8d5a3b, 0x66422a];
@@ -462,59 +540,112 @@ function buildCrowd() {
   const sc = new THREE.Vector3(1, 1, 1);
   const seeds = [];
   let i = 0;
-  for (const s of [-1, 1]) {
-    for (let r = 0; r < rows; r++) {
-      for (let k = 0; k < perRow; k++) {
-        const x = s * (APRON_X + 1.5 + r * 0.9);
-        const z = (k / (perRow - 1) - 0.5) * COURT.HALF_L * 1.7;
-        const y = 0.42 + r * 0.42;
-        seeds.push({
-          x, y, z,
-          phase: Math.random() * 6.283,
-          amp: 0.07 + Math.random() * 0.12,
-          // Everyone has their own jump rhythm and their own starting point in
-          // it, so a cheering crowd ripples instead of pulsing in unison.
-          period: 0.62 + Math.random() * 0.36,
-          offset: Math.random(),
-          sway: 0.7 + Math.random() * 0.7,
-          // How much this one bounces when nothing in particular is happening.
-          // Skewed low so a few people are always up and most are not.
-          eager: Math.pow(Math.random(), 1.8),
-          lean: 0.5 + Math.random() * 1.1,
-        });
-        m.compose(new THREE.Vector3(x, y + 0.3, z), q, sc);
-        bodies.setMatrixAt(i, m);
-        bodies.setColorAt(i, new THREE.Color(shirt[(Math.random() * shirt.length) | 0]));
-        m.compose(new THREE.Vector3(x, y + 0.62, z), q, sc);
-        heads.setMatrixAt(i, m);
-        heads.setColorAt(i, new THREE.Color(skin[(Math.random() * skin.length) | 0]));
-        i++;
-      }
+  for (const { x, y, z, along } of seatingPlan()) {
+    seeds.push({
+      x, y, z,
+      phase: Math.random() * 6.283,
+      amp: 0.07 + Math.random() * 0.12,
+      // Everyone has their own jump rhythm and their own starting point in
+      // it, so a cheering crowd ripples instead of pulsing in unison.
+      period: 0.62 + Math.random() * 0.36,
+      offset: Math.random(),
+      sway: 0.7 + Math.random() * 0.7,
+      // How much this one bounces when nothing in particular is happening.
+      // Skewed low so a few people are always up and most are not.
+      eager: Math.pow(Math.random(), 1.8),
+      lean: 0.5 + Math.random() * 1.1,
+      // Where in the sweep of a celebration this seat comes alight, taken
+      // from how far along its own bank it sits so the cheer travels like
+      // a real one -- plus scatter, so the leading edge is ragged rather
+      // than a marching line.
+      wave: along + Math.random() * 0.22,
+      // Not everyone gets out of their seat, and those who do are not
+      // equally demonstrative.
+      zeal: 0.55 + Math.random() * 0.45,
+      armBias: Math.random() < 0.72 ? 1 : 0.3,
+    });
+    const shirtCol = new THREE.Color(shirt[(Math.random() * shirt.length) | 0]);
+    const skinCol = new THREE.Color(skin[(Math.random() * skin.length) | 0]);
+    m.compose(new THREE.Vector3(x, y + 0.3, z), q, sc);
+    bodies.setMatrixAt(i, m);
+    bodies.setColorAt(i, shirtCol);
+    m.compose(new THREE.Vector3(x, y + 0.62, z), q, sc);
+    heads.setMatrixAt(i, m);
+    heads.setColorAt(i, skinCol);
+    // Arms need their rest pose written here too, not just on the first
+    // animation frame: an InstancedMesh derives its bounding sphere from
+    // whatever matrices it has when the renderer first asks, and a set of
+    // identity matrices puts that sphere at the origin -- so the whole mesh
+    // gets frustum-culled the moment the camera looks away from centre court.
+    for (let a = 0; a < 2; a++) {
+      m.compose(new THREE.Vector3(x + (a ? ARM_OUT : -ARM_OUT), y + 0.48, z), q, sc);
+      arms.setMatrixAt(i * 2 + a, m);
+      arms.setColorAt(i * 2 + a, skinCol);
     }
+    i++;
   }
+
   bodies.instanceColor.needsUpdate = true;
   heads.instanceColor.needsUpdate = true;
-  group.add(bodies, heads);
-  group.userData = { bodies, heads, seeds, count };
+  arms.instanceColor.needsUpdate = true;
+  group.add(bodies, heads, arms);
+  group.userData = { bodies, heads, arms, seeds, count, party: 0, partyT: 0 };
   return group;
+}
+
+// A celebration is a one-shot envelope rather than a level, so the crowd gets
+// up, makes its noise and sits back down on its own -- which is the difference
+// between a stand that reacts and one that is permanently going berserk.
+// Retriggering mid-rise only ever raises it; a second cheer never cuts the
+// first one short.
+export function cheerCrowd(group, strength = 1) {
+  const d = group && group.userData;
+  if (!d) return;
+  const s = Math.max(0, Math.min(1, strength));
+  if (d.party > 0 && d.partyT < PARTY_SWEEP + PARTY_RISE) {
+    d.party = Math.max(d.party, s);
+    return;
+  }
+  d.party = s;
+  d.partyT = 0;
+}
+
+// How far into the celebration one seat is, 0..1: up fast, then a smooth
+// settle, starting a beat after the seat beside it.
+function partyEnv(t, wave) {
+  const local = t - wave * PARTY_SWEEP;
+  if (local <= 0) return 0;
+  if (local < PARTY_RISE) return local / PARTY_RISE;
+  const fall = (local - PARTY_RISE) / PARTY_FALL;
+  if (fall >= 1) return 0;
+  const k = 1 - fall;
+  return k * k * (3 - 2 * k);
 }
 
 // Takes dt, not absolute time, and advances its own clock. Driving the phase
 // as `time * frequency` looks fine until the frequency changes: the argument
 // then jumps by `time * delta`, which after a few minutes of play is hundreds
 // of radians, and the whole crowd teleports to a random point in its cycle.
-// Excitement may now only scale amplitudes, never rates.
+// Excitement and celebrations may therefore only scale amplitudes, never rates.
 export function animateCrowd(group, dt, excitement = 0) {
   const d = group.userData;
   if (!d) return;
   d.clock = (d.clock || 0) + dt;
   const t = d.clock;
   const hype = Math.max(0, Math.min(1, excitement));
+  if (d.party > 0) {
+    d.partyT += dt;
+    if (d.partyT > PARTY_SWEEP + PARTY_RISE + PARTY_FALL + 0.3) d.party = 0;
+  }
+  const party = d.party;
 
   const m = new THREE.Matrix4();
   const q = new THREE.Quaternion();
+  const qa = new THREE.Quaternion();
   const sc = new THREE.Vector3(1, 1, 1);
+  const one = new THREE.Vector3(1, 1, 1);
   const v = new THREE.Vector3();
+  const Z = new THREE.Vector3(0, 0, 1);
 
   for (let i = 0; i < d.count; i++) {
     const s = d.seeds[i];
@@ -526,19 +657,72 @@ export function animateCrowd(group, dt, excitement = 0) {
     // skewed per person, so a handful are up while most are not. Excitement
     // raises everyone to the same full jump.
     const ambient = 0.12 + s.eager * 0.30;
-    const drive = Math.max(ambient, hype);
+    const cheer = party > 0 ? partyEnv(d.partyT, s.wave) * party * s.zeal : 0;
+    const drive = Math.max(ambient, hype, cheer);
     const u = (t / s.period + s.offset) % 1;
-    const lift = lift0 + 4 * u * (1 - u) * s.amp * drive;
+    const hop = 4 * u * (1 - u);
+    // Two parts to a celebration: getting out of the seat, which is a sustained
+    // rise, and the jumping, which is the hop scaled well past anything
+    // excitement alone produces. Together they read as "they just won" rather
+    // than "the crowd is into this".
+    const lift = lift0 + cheer * 0.26 + hop * s.amp * (drive + cheer * 2.9);
 
-    v.set(s.x + sway, s.y + 0.3 + lift, s.z);
+    const bx = s.x + sway;
+    const by = s.y + 0.3 + lift;
+
+    if (cheer <= 0.02) {
+      // Nothing happening: skip the pose maths entirely. This is the path the
+      // crowd is on for all but a few seconds of a match.
+      v.set(bx, by, s.z);
+      m.compose(v, IDENT_Q, one);
+      d.bodies.setMatrixAt(i, m);
+      v.set(s.x + sway * 1.25, s.y + 0.62 + lift, s.z);
+      m.compose(v, IDENT_Q, one);
+      d.heads.setMatrixAt(i, m);
+      for (let a = 0; a < 2; a++) {
+        v.set(bx + (a ? ARM_OUT : -ARM_OUT), by + 0.18, s.z);
+        m.compose(v, IDENT_Q, one);
+        d.arms.setMatrixAt(i * 2 + a, m);
+      }
+      continue;
+    }
+
+    // Squash and stretch, read off the same hop: stretched through the fast
+    // part of the arc, compressed at the top and on the landing. Without it a
+    // jump reads as a capsule sliding up and down a rail.
+    const stretch = 1 + cheer * 0.30 * (Math.abs(1 - 2 * u) - 0.45);
+    const tilt = Math.sin(t * s.lean * 1.6 + s.phase) * cheer * 0.17;
+    q.setFromAxisAngle(Z, tilt);
+    sc.set(1 / Math.sqrt(stretch), stretch, 1 / Math.sqrt(stretch));
+
+    v.set(bx, by, s.z);
     m.compose(v, q, sc);
     d.bodies.setMatrixAt(i, m);
-    v.set(s.x + sway * 1.25, s.y + 0.62 + lift, s.z);
-    m.compose(v, q, sc);
+
+    // The head rides the top of the body, so it has to follow the stretch and
+    // the lean rather than sitting at a fixed offset.
+    const neck = 0.32 * stretch;
+    v.set(bx + sway * 0.25 - Math.sin(tilt) * neck, by + Math.cos(tilt) * neck, s.z);
+    m.compose(v, q, one);
     d.heads.setMatrixAt(i, m);
+
+    // Arms hang at rest and swing up and out as the cheer takes hold.
+    const raise = Math.min(1, cheer * s.armBias * 1.3);
+    const shoulderY = by + 0.18 * stretch;
+    for (let a = 0; a < 2; a++) {
+      const sgn = a ? 1 : -1;
+      // Positive Z rotation swings the arm toward +x, so the sign has to match
+      // the shoulder it hangs from -- flip it and both arms cross the chest and
+      // vanish behind the torso.
+      qa.setFromAxisAngle(Z, tilt + sgn * raise * ARM_UP);
+      v.set(bx + sgn * ARM_OUT, shoulderY, s.z);
+      m.compose(v, qa, one);
+      d.arms.setMatrixAt(i * 2 + a, m);
+    }
   }
   d.bodies.instanceMatrix.needsUpdate = true;
   d.heads.instanceMatrix.needsUpdate = true;
+  d.arms.instanceMatrix.needsUpdate = true;
 }
 
 function buildLights(quality) {

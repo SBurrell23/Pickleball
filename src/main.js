@@ -4,6 +4,7 @@ import { AudioEngine } from './audio/audio.js';
 import { View } from './render/view.js';
 import { Hud } from './ui/hud.js';
 import { Menus } from './ui/menus.js';
+import { gearIcon } from './ui/icons.js';
 import { Net } from './net/net.js';
 import { Game } from './game/game.js';
 import { CHARACTERS } from './game/characters.js';
@@ -36,7 +37,23 @@ class App {
       onBackToLobby: () => this.backToLobby(true),
       onChangeCharacter: (p) => this.changeCharacter(p),
       onLobbyMode: (m) => this.setLobbyMode(m),
+      onScreen: (s) => this.gear.classList.toggle('on', s === 'settings'),
     });
+
+    // Settings are one click away from anywhere, including mid-point. The
+    // overlay is pointer-events:none so the aiming cursor passes through it --
+    // the button itself opts back in.
+    this.gear = document.createElement('button');
+    this.gear.type = 'button';
+    this.gear.className = 'gear-btn';
+    this.gear.title = 'Settings';
+    this.gear.setAttribute('aria-label', 'Settings');
+    this.gear.innerHTML = gearIcon();
+    this.gear.addEventListener('click', () => {
+      this.audio.uiClick();
+      this.toggleSettings();
+    });
+    this.overlay.appendChild(this.gear);
 
     // The court doubles as the menu backdrop, so it lives for the whole
     // session rather than being rebuilt per match.
@@ -106,6 +123,28 @@ class App {
       return;
     }
     if (this.game) this.setPaused(true);
+  }
+
+  // The gear behaves like a toggle: a second click backs out exactly the way
+  // the Back button would, so it is never a one-way trip into a submenu.
+  toggleSettings() {
+    if (this.menus.screen === 'settings') {
+      this.menus.act('back', this.menus.data.returnTo || (this.game ? 'pause' : 'main'));
+      return;
+    }
+    if (this.menus.visible) {
+      this.menus.show('settings', { returnTo: this.menus.screen });
+      return;
+    }
+    if (this.game) {
+      // Mid-match. Pause first, so Back lands on the pause menu rather than
+      // dropping the player straight back into a live point. An online match
+      // keeps simulating -- see setPaused.
+      this.setPaused(true);
+      this.menus.show('settings', { returnTo: 'pause' });
+      return;
+    }
+    this.menus.show('settings', { returnTo: 'main' });
   }
 
   setPaused(p) {

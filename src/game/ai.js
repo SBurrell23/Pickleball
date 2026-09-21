@@ -13,6 +13,16 @@ const CONTACT_LEAD = PLAY.SWING_WINDUP + PLAY.SWING_ACTIVE * 0.45;
 
 // Difficulty 0..1 scales how tightly the bot hits the timing windows, how
 // early it reads the ball, and how well it covers the court.
+//
+// Past `hard` (0.86) the linear curve has almost nothing left to give: the
+// read delay and the aim noise are already near zero, so 1.0 measured no
+// better than 0.95. `Extreme` therefore gets its own tier on top, faded in
+// over that last stretch, which sharpens the things the plain scale never
+// touched -- anticipation, court coverage and shot selection.
+export function elite(d) {
+  return Math.max(0, Math.min(1, (d - 0.86) / 0.14));
+}
+
 export function createBotState(difficulty = 0.6) {
   return {
     difficulty,
@@ -93,16 +103,25 @@ function pickTarget(sim, p, st, aggressive) {
     const avg = opp.reduce((s, o) => s + o.x, 0) / opp.length;
     awayX = avg > 0 ? -1 : 1;
   }
-  const spread = COURT.HALF_W * (0.42 + 0.45 * d);
+  const e = elite(d);
+  // An elite bot works the open court harder, but only a little: aiming at the
+  // paint costs more in balls sprayed out than it wins in winners, because the
+  // swing's own scatter lands on top of whatever is aimed for.
+  const spread = COURT.HALF_W * (0.42 + 0.45 * d + 0.06 * e);
   let tx = awayX * spread * (0.5 + Math.random() * 0.6);
   let tz = aggressive
     ? oppSide * (COURT.HALF_L * (0.58 + Math.random() * 0.3))
     : oppSide * (COURT.KITCHEN * (0.5 + Math.random() * 0.45));
   // Weaker bots miss their spot more.
-  const noise = (1 - d) * 1.3;
+  const noise = (1 - d) * 1.3 * (1 - e * 0.5);
   tx += (Math.random() * 2 - 1) * noise;
   tz += (Math.random() * 2 - 1) * noise * oppSide;
+  // Keep the aim inside the court. Depth had no clamp at all, so a deep target
+  // plus noise was aimed past the baseline -- a point thrown away before the
+  // swing even happened.
   tx = Math.max(-(COURT.HALF_W - 0.25), Math.min(COURT.HALF_W - 0.25, tx));
+  const maxZ = COURT.HALF_L - 0.45;
+  tz = Math.max(-maxZ, Math.min(maxZ, tz));
   return { x: tx, z: tz };
 }
 
@@ -147,6 +166,7 @@ export function updateBot(sim, p, st, dt) {
   const ch = getCharacter(p.charId);
   const tune = swingTuning(ch);
   const d = st.difficulty;
+  const e = elite(d);
 
   if (sim.phase === PHASE.POINT || sim.phase === PHASE.GAMEOVER) {
     st.sw.active = false;
@@ -175,7 +195,7 @@ export function updateBot(sim, p, st, dt) {
       }
     } else if (!st.committed) {
       st.reactionT += dt;
-      if (st.reactionT > 0.45 + (1 - d) * 0.6) {
+      if (st.reactionT > 0.45 + (1 - d) * 0.6 - e * 0.15) {
         beginSwing(st.sw, MODE.DRIVE, tune, Math.random, SWING.SERVE_ZONE);
         st.target = {
           x: sim.serveTargetXSign * (COURT.HALF_W * (0.35 + Math.random() * 0.5)),
@@ -208,8 +228,8 @@ export function updateBot(sim, p, st, dt) {
     // Pace is what makes a shot hard to read. Without this a 27 m/s smash was
     // tracked exactly as well as a floated dink, and put-aways came back.
     const pace = Math.min(1, Math.hypot(sim.ball.v.x, sim.ball.v.z) / 22);
-    st.reactDelay = (0.085 + (1 - d) * 0.30) * (1 + pace * 0.85);
-    const r = (1 - d) * 1.25 + pace * 0.6 * (1 - d * 0.45);
+    st.reactDelay = (0.085 + (1 - d) * 0.30) * (1 + pace * 0.85) * (1 - e * 0.62);
+    const r = ((1 - d) * 1.25 + pace * 0.6 * (1 - d * 0.45)) * (1 - e * 0.75);
     const ang = Math.random() * Math.PI * 2;
     const mag = Math.sqrt(Math.random()) * r;
     st.posErr = { x: Math.cos(ang) * mag, z: Math.sin(ang) * mag };
@@ -238,8 +258,8 @@ export function updateBot(sim, p, st, dt) {
     goalZ = arrival.z + p.side * 0.30;
   } else {
     // Recover toward the kitchen line, which is where pickleball is won.
-    const push = 0.35 + d * 0.5;
-    goalX = Math.sin(sim.time * 0.7 + st.idleJitter) * 0.6;
+    const push = 0.35 + d * 0.5 + e * 0.12;
+    goalX = Math.sin(sim.time * 0.7 + st.idleJitter) * 0.6 * (1 - e * 0.7);
     goalZ = p.side * (COURT.KITCHEN + 0.45 + (1 - push) * 3.0);
   }
   goalZ = Math.max(0.35, Math.min(COURT.HALF_L + 1.2, Math.abs(goalZ))) * p.side;
@@ -254,8 +274,16 @@ export function updateBot(sim, p, st, dt) {
     const ease = Math.min(1, dist / 0.85);
     inp.mx = (dx / dist) * ease;
     inp.mz = (dz / dist) * ease;
-    // Dash for balls that are genuinely out of range.
-    if (dist > 2.6 && arrival && arrival.t < 0.9 && d > 0.35) inp.dash = true;
+    // Dash for balls that are genuinely out of range. Spending the bar on a
+    // ball it would have walked to is worse than not dashing at all -- the
+    // stamina is gone when the next one needs it -- so an elite bot checks
+    // whether running flat out actually gets there in time first.
+    if (arrival && d > 0.35) {
+      const need = dist / Math.max(0.05, arrival.t);
+      const canRun = 6.35 * p.speed;   // mirrors the walk cap in Sim.stepPlayer
+      const wontMakeIt = e > 0 ? need > canRun * (1.02 - e * 0.10) : dist > 2.6;
+      if (wontMakeIt && arrival.t < 0.9 + e * 0.35) inp.dash = true;
+    }
   }
 
   // ---- swinging ----
@@ -337,7 +365,7 @@ export function updateBot(sim, p, st, dt) {
       // Speed-ups keep a kitchen exchange from becoming a stalemate.
       const speedUp = !mustDink && atKitchen
         && arrival.y > COURT.NET_H_CENTER + 0.12
-        && Math.random() < 0.25 + d * 0.15;
+        && Math.random() < 0.25 + d * 0.15 + e * 0.30;
 
       // A good bot resets with a soft ball when it is pinned deep.
       const pinnedDeep = Math.abs(arrival.z) > COURT.HALF_L * 0.72;

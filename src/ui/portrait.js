@@ -21,16 +21,65 @@ const HEAD_BOT = 0.30;
 const TORSO_BOT = 0.635;
 const ANKLE = 0.90;
 
+// Optical centring, measured rather than guessed. The figure is deliberately
+// off-centre in its own coordinates -- the raised paddle hangs out one side,
+// and every crest sits differently -- so a fixed nudge centres one character
+// and leaves the rest sitting crooked over their names. Draw it once, measure
+// where the ink actually landed, and redraw shifted. The answer only depends
+// on the character and the canvas size, so it is measured once each.
+const shiftCache = new Map();
+
 export function drawPortrait(g, W, H, def) {
   if (!g || !(W > 0) || !(H > 0)) return;
+  const key = `${(def && def.id) || '?'}|${Math.round(W)}x${Math.round(H)}`;
+  let dx = shiftCache.get(key);
   g.save();
   try {
     g.clearRect(0, 0, W, H);
     draw(g, W, H, def);
+    if (dx === undefined) {
+      dx = measureShift(g, W);
+      shiftCache.set(key, dx);
+    }
+    if (dx) {
+      g.clearRect(0, 0, W, H);
+      g.translate(dx, 0);
+      draw(g, W, H, def);
+    }
   } finally {
     // Always unwind, so a half-finished draw can never leak canvas state.
     g.restore();
   }
+}
+
+// How far to slide what was just drawn so its ink is centred in the canvas,
+// in CSS pixels. Returns 0 if the pixels cannot be read (a tainted or
+// zero-sized canvas), which simply leaves the portrait as drawn.
+function measureShift(g, W) {
+  const cv = g.canvas;
+  const cw = cv && cv.width, chh = cv && cv.height;
+  if (!cw || !chh) return 0;
+  let data;
+  try {
+    data = g.getImageData(0, 0, cw, chh).data;
+  } catch {
+    return 0;
+  }
+  let lo = cw, hi = -1;
+  for (let y = 0; y < chh; y++) {
+    const row = y * cw * 4;
+    for (let x = 0; x < cw; x++) {
+      if (data[row + x * 4 + 3] > 16) {
+        if (x < lo) lo = x;
+        if (x > hi) hi = x;
+      }
+    }
+  }
+  if (hi < lo) return 0;
+  // Never push ink off an edge to satisfy the centring.
+  let shift = (cw - 1) / 2 - (lo + hi) / 2;
+  shift = Math.max(-lo, Math.min(cw - 1 - hi, shift));
+  return (shift * W) / cw;
 }
 
 function draw(g, W, H, def) {

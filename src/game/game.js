@@ -8,7 +8,7 @@ import {
   MODE, createSwingState, beginSwing, updateSwing, releaseSwing,
   sweetZone, classifyShot, lobBonus,
 } from './swing.js';
-import { buildBall, buildBallShadow, animateCrowd } from '../render/assets.js';
+import { buildBall, buildBallShadow, animateCrowd, cheerCrowd } from '../render/assets.js';
 import { buildCharacter, animateCharacter, paddleWorldPos } from '../render/character.js';
 import { Effects } from '../render/fx.js';
 import { SnapshotBuffer, ErrorCorrector } from '../net/interp.js';
@@ -51,6 +51,7 @@ export class Game {
     this.crowdHype = 0;
     this.crowdShown = 0;
     this.lastShotWasSmash = false;
+    this.lastShotPerfect = false;
     this._sparkColor = new THREE.Color();
     this.sparkAccum = [];
     this.lastNeedleDir = 1;
@@ -486,6 +487,7 @@ export class Game {
           }
           // A put-away gets the crowd going.
           this.lastShotWasSmash = e.shot === 'smash';
+          this.lastShotPerfect = e.quality === 'perfect';
           if (e.shot === 'smash' && e.quality !== 'weak') {
             this.audio.cheer(0.35 + e.power * 0.3);
             this.crowdHype = Math.min(1, this.crowdHype + 0.55);
@@ -523,11 +525,21 @@ export class Game {
           const myTeam = this.me.team;
           const won = e.team === myTeam;
           this.audio.pointWon(won);
-          // Long rallies and put-aways earn a cheer; a serve fault does not.
-          const earned = (e.rallyShots || 0) >= 8 || this.lastShotWasSmash;
-          this.audio.cheer(earned ? 0.5 + Math.min(0.5, (e.rallyShots || 0) / 30) : 0.22);
-          this.crowdHype = earned ? 1 : Math.max(this.crowdHype, 0.45);
+          // The crowd only gets out of its seat for a point that deserved it:
+          // a long rally, or a shot struck perfectly to finish it. A netted
+          // dink at 2-1 gets the polite version. Scoring it rather than
+          // cheering everything is the whole difference -- a stand that
+          // erupts every point stops meaning anything.
+          const rally = e.rallyShots || 0;
+          const longPoint = Math.max(0, Math.min(1, (rally - 7) / 13));
+          const finisher = this.lastShotPerfect ? (this.lastShotWasSmash ? 1 : 0.8) : 0;
+          const earned = Math.max(longPoint, finisher,
+            this.lastShotWasSmash ? 0.45 : 0);
+          this.audio.cheer(earned > 0.2 ? 0.5 + earned * 0.5 : 0.22);
+          this.crowdHype = Math.max(this.crowdHype, 0.4 + earned * 0.6);
+          if (earned > 0.25 && this.crowd) cheerCrowd(this.crowd, 0.55 + earned * 0.45);
           this.lastShotWasSmash = false;
+          this.lastShotPerfect = false;
           this.hud.message(e.reason, 'info', 1.5);
           this.hud.setScore(e.score[0], e.score[1], e.serveTeam, mySide);
           this.stats.longest = Math.max(this.stats.longest, e.rallyShots || 0);

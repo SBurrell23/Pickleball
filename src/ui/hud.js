@@ -40,8 +40,10 @@ export class Hud {
             <span class="serve-dot" id="serveB"></span>
           </div>
         </div>
-        <div class="net-stats" id="netStats"></div>
       </div>
+      <!-- Outside hud-top on purpose: that row is pinned to the top of the
+           screen, and these belong in the opposite corner to the gear. -->
+      <div class="net-stats" id="netStats"></div>
       <div class="hud-center" id="hudCenter"></div>
       <div class="hud-hint" id="hudHint"></div>
     `;

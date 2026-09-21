@@ -21,7 +21,7 @@ export const DEFAULTS = {
   muteOnBlur: true,
 
   // Gameplay / feel
-  difficulty: 'normal',  // easy | normal | hard
+  difficulty: 'normal',  // easy | normal | hard | extreme
   aimSensitivity: 1.0,
   // The OS cursor is hidden during play, so the reticle is not optional --
   // these choose what it looks like instead of whether it exists.
@@ -38,7 +38,7 @@ export const DEFAULTS = {
   lastCharacter: 'volley',
 };
 
-export const DIFFICULTY_LEVEL = { easy: 0.30, normal: 0.58, hard: 0.86 };
+export const DIFFICULTY_LEVEL = { easy: 0.30, normal: 0.58, hard: 0.86, extreme: 1.0 };
 
 function clampNum(v, lo, hi, dflt) {
   const n = typeof v === 'number' ? v : parseFloat(v);
@@ -55,7 +55,7 @@ const RANGES = {
 const ENUMS = {
   antialias: ['off', 'fxaa', 'msaa'],
   shadows: ['off', 'low', 'high'],
-  difficulty: ['easy', 'normal', 'hard'],
+  difficulty: ['easy', 'normal', 'hard', 'extreme'],
   cameraMode: ['follow', 'fixed', 'broadcast'],
   colorblind: ['off', 'deuter', 'protan', 'tritan'],
   cursorStyle: ['reticle', 'ring', 'cross', 'dot', 'chevron', 'target'],
