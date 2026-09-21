@@ -8,6 +8,16 @@ import { HORIZON } from './assets.js';
 // so far over that depth stops reading.
 const FOV = 38;
 
+// The sun tracks a full circle around the court every ten minutes, rising and
+// falling as it goes. It deliberately never drops below the horizon: a real
+// full rotation would spend half the cycle in darkness, and a match should not
+// become unplayable because of what time it is.
+const SUN_PERIOD = 600;          // seconds for one full pass
+const SUN_EL_MID = 0.90;         // ~52 degrees
+const SUN_EL_AMP = 0.49;         // swings between ~24 and ~80 degrees
+const SUN_HIGH = new THREE.Color(0xfff6e2);
+const SUN_LOW = new THREE.Color(0xffd08a);
+
 // Renderer + scene + camera. Antialiasing mode is a context-creation choice,
 // so switching it rebuilds the WebGL context; everything else applies live.
 
@@ -98,16 +108,18 @@ export class View {
   buildLights() {
     const hemi = new THREE.HemisphereLight(HORIZON, 0x4a7a44, 1.05);
     this.scene.add(hemi);
+    this.hemi = hemi;
 
     const key = new THREE.DirectionalLight(0xfff6e2, 1.95);
     key.position.set(9, 15, -7);
     key.castShadow = true;
-    key.shadow.camera.left = -14;
-    key.shadow.camera.right = 14;
-    key.shadow.camera.top = 16;
-    key.shadow.camera.bottom = -16;
+    // Wide enough that a low sun's long shadows still fall inside the map.
+    key.shadow.camera.left = -22;
+    key.shadow.camera.right = 22;
+    key.shadow.camera.top = 24;
+    key.shadow.camera.bottom = -24;
     key.shadow.camera.near = 1;
-    key.shadow.camera.far = 46;
+    key.shadow.camera.far = 90;
     key.shadow.bias = -0.0012;
     key.shadow.normalBias = 0.022;
     this.scene.add(key);
@@ -119,6 +131,9 @@ export class View {
 
     // Direction the sky shader should put the sun in, matching the key light.
     this.sunDirection = key.position.clone().normalize();
+    this.sunPhase = Math.PI * 0.35;   // start mid-morning
+    this.sky = null;
+    this._sunDir = new THREE.Vector3();
   }
 
   createRenderer() {
@@ -220,6 +235,36 @@ export class View {
     if (key === 'renderScale') this.resize();
     if (key === 'fpsCap') this.lastFrame = 0;
     return false;
+  }
+
+  setSky(sky) {
+    this.sky = sky;
+    this.updateSun(0);
+  }
+
+  // Walk the sun around its arc and keep the key light, its warmth and the
+  // sky's sun disc all pointing the same way.
+  updateSun(dt) {
+    this.sunPhase = (this.sunPhase + (dt / SUN_PERIOD) * Math.PI * 2) % (Math.PI * 2);
+    const az = this.sunPhase;
+    const el = SUN_EL_MID + SUN_EL_AMP * Math.sin(az);
+    const ce = Math.cos(el);
+    this._sunDir.set(ce * Math.sin(az), Math.sin(el), ce * Math.cos(az));
+
+    this.key.position.copy(this._sunDir).multiplyScalar(34);
+    this.sunDirection.copy(this._sunDir);
+    if (this.sky && this.sky.userData.sunUniform) {
+      this.sky.userData.sunUniform.value.copy(this._sunDir);
+    }
+
+    // Warmer when the sun is low, as it would be. A low sun also strikes the
+    // court at a grazing angle and loses most of its effect, so the lamp is
+    // turned up and the ambient lifted to compensate -- the scene should read
+    // as evening light, not as a court you cannot see.
+    const high = Math.max(0, Math.min(1, (Math.sin(el) - 0.4) / 0.55));
+    this.key.color.copy(SUN_LOW).lerp(SUN_HIGH, high);
+    this.key.intensity = 2.85 - high * 0.85;
+    this.hemi.intensity = 1.05 + (1 - high) * 0.55;
   }
 
   // ---- camera ------------------------------------------------------------

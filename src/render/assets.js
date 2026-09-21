@@ -708,6 +708,9 @@ export function buildSky(sunDirection) {
   );
   dome.renderOrder = -1;
   root.add(dome);
+  // The light drives this, so the disc in the sky and the direction shadows
+  // fall from can never disagree.
+  root.userData.sunUniform = dome.material.uniforms.sunDir;
 
   // Ground plane large enough that its edge is well past the fog distance,
   // so it is never seen ending.

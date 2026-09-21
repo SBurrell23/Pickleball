@@ -39,7 +39,9 @@ class App {
     // session rather than being rebuilt per match.
     this.court = buildCourt(settings.get('shadows'));
     this.view.scene.add(this.court);
-    this.view.scene.add(buildSky(this.view.sunDirection));
+    this.sky = buildSky(this.view.sunDirection);
+    this.view.scene.add(this.sky);
+    this.view.setSky(this.sky);
 
     this.game = null;
     this.net = null;
@@ -394,6 +396,7 @@ class App {
     dt = Math.min(dt, 0.1);
     this.view.trackFps(dt);
 
+    this.view.updateSun(dt);
     if (this.net) this.net.tick(dt);
 
     if (this.game) {

@@ -5,7 +5,8 @@ Three.js for rendering, PeerJS for peer-to-peer multiplayer. No build step, no
 backend, no install — every asset and every sound is generated in code at runtime.
 
 A daylight court inside a chain-link fence, under a procedural sky, with grass
-and scrub running to the horizon. Players are deliberately anonymous -- a floating body and a head, like
+and scrub running to the horizon. The sun tracks a full circle overhead every
+ten minutes, so the shadows swing round and the light warms as it drops. Players are deliberately anonymous -- a floating body and a head, like
 the crowd -- that lean into their movement, with a paddle attached to nothing
 that hovers beside them and does the acting. The court, the net's sag, the
 crowd, the player models, the portraits and every sound effect are built from
