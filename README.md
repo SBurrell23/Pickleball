@@ -4,6 +4,11 @@ A Mario Tennis–style pickleball game for two or four players. Vanilla JavaScri
 Three.js for rendering, PeerJS for peer-to-peer multiplayer. No build step, no
 backend, no install — every asset and every sound is generated in code at runtime.
 
+Chibi characters on a daylight court, under a procedural sky with clouds and
+grass running to the horizon. The court, the net's sag, the crowd, the player
+models, the portraits and the whole soundtrack are all built from primitives and
+oscillators at load time; there is not a single image or audio file in the repo.
+
 **Play:** https://sburrell23.github.io/Pickleball/
 
 ## Controls
@@ -85,9 +90,10 @@ Graphics, audio and feel are all adjustable from the menu and persist locally.
   scale, shadow quality, particle density, ball trail, glow, animated crowd,
   screen shake, field of view, FPS counter.
 - **Audio** — master, effects, music and crowd ambience, plus mute-on-blur.
-- **Gameplay** — CPU difficulty, timing-window width (a comfort option that
-  widens both sweet spots), camera mode, aim sensitivity, crosshair and landing
-  marker toggles, and colourblind palettes.
+- **Gameplay** — CPU difficulty (Easy / Normal / Hard, also pickable straight
+  from the pre-match screen), timing-window width (a comfort option that widens
+  both sweet spots), camera mode, aim sensitivity, crosshair and landing marker
+  toggles, and colourblind palettes.
 
 Anti-aliasing is a WebGL context-creation setting, so changing it rebuilds the
 renderer; everything else applies live.
@@ -116,10 +122,17 @@ node tools/simtest.mjs       # rules, scoring and AI balance over many matches
 ```
 
 `simtest.mjs` plays full matches bot-versus-bot and reports rally length, why
-points ended, shot mix and timing-quality distribution. It is the fastest way to
-see whether a physics or tuning change broke the game's balance — a healthy
-build sits around 6–8 shots per rally with points ending for a spread of
-reasons rather than one dominant fault.
+points ended, shot mix, timing-quality distribution and the serve → return →
+third-shot flow, then asserts on all of it. It is the fastest way to see whether
+a physics or tuning change broke the balance, and it has caught real regressions
+more than once: a healthy build sits around 8–10 shots per rally in singles and
+14–20 in doubles, with games reaching a winner and points ending for a spread of
+reasons.
+
+Singles and doubles are checked separately and against different bands — four
+players cover the court far better than two, so doubles rallies are genuinely
+longer and holding both to one number would either mask a broken singles game or
+flag a healthy doubles one.
 
 ## Layout
 
@@ -141,7 +154,7 @@ src/
     game.js           ties simulation, rendering, netcode and input together
   net/                PeerJS transport, snapshot interpolation, reconciliation
   render/             procedural court, character rigs, effects, renderer
-  ui/                 HUD canvas and menu screens
+  ui/                 HUD canvas, menu screens, character portraits
 tools/                dev server and headless test harnesses
 ```
 

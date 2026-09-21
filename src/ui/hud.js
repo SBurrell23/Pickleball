@@ -6,9 +6,9 @@ import { MODE, sweetZone } from '../game/swing.js';
 
 const CB_FILTERS = {
   off: null,
-  deuter: { good: '#2f7fd0', perfect: '#ffe066', bad: '#c46a00' },
-  protan: { good: '#3aa0d8', perfect: '#ffe066', bad: '#9b7500' },
-  tritan: { good: '#2fa87a', perfect: '#ff7ab6', bad: '#b03030' },
+  deuter: { good: '#2c7bc8', perfect: '#e4ef3f', bad: '#c46a00' },
+  protan: { good: '#3aa0d8', perfect: '#e4ef3f', bad: '#9b7500' },
+  tritan: { good: '#16988a', perfect: '#ff7ab6', bad: '#b03030' },
 };
 
 export class Hud {
@@ -147,7 +147,7 @@ export class Hud {
 
   _palette() {
     const cb = CB_FILTERS[this.settings.get('colorblind')];
-    return cb || { good: '#3ddc84', perfect: '#ffe066', bad: '#ff6b5e' };
+    return cb || { good: '#16988a', perfect: '#e4ef3f', bad: '#ef5b4c' };
   }
 
   _drawSwingMeter(g, state) {
@@ -169,12 +169,12 @@ export class Hud {
     g.shadowColor = 'rgba(0,0,0,0.55)';
     g.shadowBlur = 14;
     this._roundRect(g, x - 3, y - 3, W + 6, H + 6, r + 3);
-    g.fillStyle = 'rgba(10,14,20,0.82)';
+    g.fillStyle = 'rgba(16,32,44,0.92)';
     g.fill();
     g.restore();
 
     this._roundRect(g, x, y, W, H, r);
-    g.fillStyle = 'rgba(28,36,48,0.95)';
+    g.fillStyle = 'rgba(255,255,255,0.14)';
     g.fill();
 
     // Sweet zone
@@ -233,14 +233,14 @@ export class Hud {
 
     // Border
     this._roundRect(g, x, y, W, H, r);
-    g.strokeStyle = 'rgba(255,255,255,0.28)';
-    g.lineWidth = 1.5;
+    g.strokeStyle = 'rgba(255,255,255,0.9)';
+    g.lineWidth = 2.5;
     g.stroke();
 
     // Label
     g.font = '700 12px "Trebuchet MS", system-ui, sans-serif';
     g.textAlign = 'center';
-    g.fillStyle = 'rgba(220,235,250,0.85)';
+    g.fillStyle = 'rgba(255,255,255,0.95)';
     g.fillText(
       isDrive ? (state.shotLabel || 'POWER') : (state.shotLabel || 'REACTION'),
       x + W / 2, y - 12
@@ -260,37 +260,37 @@ export class Hud {
     const x = pad, y = this.h - pad - 30;
 
     // Stamina
-    g.fillStyle = 'rgba(10,14,20,0.7)';
+    g.fillStyle = 'rgba(16,32,44,0.85)';
     this._roundRect(g, x - 3, y - 3, w + 6, h + 6, 6); g.fill();
-    g.fillStyle = 'rgba(60,80,100,0.6)';
+    g.fillStyle = 'rgba(255,255,255,0.16)';
     this._roundRect(g, x, y, w, h, 4); g.fill();
     const st = Math.max(0, Math.min(1, p.stamina / 100));
-    g.fillStyle = st > 0.34 ? '#5ad1ff' : '#ff9f43';
+    g.fillStyle = st > 0.34 ? '#16988a' : '#ef8b3c';
     this._roundRect(g, x, y, w * st, h, 4); g.fill();
 
     // Special meter
     const y2 = y + 16;
-    g.fillStyle = 'rgba(10,14,20,0.7)';
+    g.fillStyle = 'rgba(16,32,44,0.85)';
     this._roundRect(g, x - 3, y2 - 3, w + 6, h + 6, 6); g.fill();
-    g.fillStyle = 'rgba(60,80,100,0.6)';
+    g.fillStyle = 'rgba(255,255,255,0.16)';
     this._roundRect(g, x, y2, w, h, 4); g.fill();
     const sp = Math.max(0, Math.min(1, p.special));
     if (sp >= 1) {
       const pulse = 0.65 + 0.35 * Math.sin(performance.now() / 120);
       g.save();
-      g.shadowColor = '#ffd24a';
+      g.shadowColor = '#e4ef3f';
       g.shadowBlur = 14 * pulse;
-      g.fillStyle = '#ffd24a';
+      g.fillStyle = '#e4ef3f';
       this._roundRect(g, x, y2, w, h, 4); g.fill();
       g.restore();
     } else {
-      g.fillStyle = '#b07de8';
+      g.fillStyle = '#9b6ede';
       this._roundRect(g, x, y2, w * sp, h, 4); g.fill();
     }
 
     g.font = '600 10px "Trebuchet MS", system-ui, sans-serif';
     g.textAlign = 'left';
-    g.fillStyle = 'rgba(200,220,240,0.72)';
+    g.fillStyle = 'rgba(255,255,255,0.85)';
     g.fillText('STAMINA', x, y - 6);
     g.fillText(sp >= 1 ? 'STAR READY  [E]' : 'STAR', x, y2 + h + 12);
   }

@@ -96,7 +96,25 @@ export function predictLanding(ball, maxTime = 4, dt = 1 / 120) {
 // it by simulating, measuring the miss, and over-aiming by that amount. Short
 // targets near the net also need a loftier arc than the requested flight time,
 // so walk the flight time up until a solution both clears and lands true.
-export function solveToLand(from, target, T0, spin, clearance = 0.10) {
+export function solveToLand(from, target, T0, spin, clearance = 0.10, allowLoft = true) {
+  if (!allowLoft) {
+    // Mistimed contact does not get to quietly buy a higher arc. Solve at the
+    // flight time the shot actually earned, correct for drag, and if the path
+    // clips the net then that is the shot -- which is what makes dumping a bad
+    // dink into the net a real risk.
+    let aim = { x: target.x, z: target.z };
+    let sol = { v: solveLaunch(from, aim, T0), T: T0, clears: false };
+    for (let i = 0; i < 4; i++) {
+      const land = predictLanding({ p: { ...from }, v: { ...sol.v }, spin });
+      if (land.hitNet) break;
+      const ex = target.x - land.x;
+      const ez = target.z - land.z;
+      if (Math.hypot(ex, ez) < 0.02) break;
+      aim = { x: aim.x + ex, z: aim.z + ez };
+      sol = { v: solveLaunch(from, aim, T0), T: T0, clears: false };
+    }
+    return sol;
+  }
   let fallback = null;
   let T = T0;
   for (let attempt = 0; attempt < 10; attempt++) {

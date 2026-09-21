@@ -125,12 +125,14 @@ export class Game {
   get me() { return this.sim.players[this.myIdx]; }
   get myTuning() { return swingTuning(getCharacter(this.me.charId)); }
 
-  // Movement axes are expressed from the player's own point of view, so W is
-  // toward the net whichever side you are on.
+  // Movement is expressed from behind the player, so W is toward the net and
+  // D is screen-right whichever side you are on. The camera sits at
+  // z = side * (HALF_L + k) looking at the net, which flips BOTH axes relative
+  // to world space -- screen-right is world x * side, screen-forward is -z * side.
   movementInput() {
     const a = this.input.axis();
     const s = this.me.side;
-    return { mx: a.x * -s, mz: a.z * -s };
+    return { mx: a.x * s, mz: a.z * -s };
   }
 
   updateAim() {

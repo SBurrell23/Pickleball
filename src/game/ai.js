@@ -22,6 +22,7 @@ export function createBotState(difficulty = 0.6) {
     target: { x: 0, z: 0 },
     intercept: null,
     soft: false,
+    leadAtStart: 0.42,
     reactionT: 0,
     lastShotSeen: -1,
     reactDelay: 0,
@@ -132,7 +133,10 @@ function fireSwing(sim, p, st, tune) {
     // The bot's bar is never drawn, so grading it against wherever the needle
     // actually is -- plus a skill-scaled error -- is equivalent to it having
     // reacted that well, and keeps one shared code path with the player.
-    const err = (Math.random() * 2 - 1) * ((1 - d) * 0.78 + 0.012);
+    const want = 0.42;
+    const had = Math.max(0.06, st.leadAtStart ?? want);
+    const rush = Math.min(3.2, Math.max(1, want / had));
+    const err = (Math.random() * 2 - 1) * ((1 - d) * 0.78 + 0.012) * rush;
     st.sw.sweetCenter = Math.max(0.02, Math.min(0.98, st.sw.needle + err));
   }
   const res = releaseSwing(st.sw, tune);
@@ -207,8 +211,11 @@ export function updateBot(sim, p, st, dt) {
   // trajectory solver simply never misses.
   if (sim.ball.shotCount !== st.lastShotSeen) {
     st.lastShotSeen = sim.ball.shotCount;
-    st.reactDelay = 0.085 + (1 - d) * 0.30;
-    const r = (1 - d) * 1.25;
+    // Pace is what makes a shot hard to read. Without this a 27 m/s smash was
+    // tracked exactly as well as a floated dink, and put-aways came back.
+    const pace = Math.min(1, Math.hypot(sim.ball.v.x, sim.ball.v.z) / 22);
+    st.reactDelay = (0.085 + (1 - d) * 0.30) * (1 + pace * 0.85);
+    const r = (1 - d) * 1.25 + pace * 0.6 * (1 - d * 0.45);
     const ang = Math.random() * Math.PI * 2;
     const mag = Math.sqrt(Math.random()) * r;
     st.posErr = { x: Math.cos(ang) * mag, z: Math.sin(ang) * mag };
@@ -289,10 +296,25 @@ export function updateBot(sim, p, st, dt) {
     if (arrival.t <= chargeNeeded + CONTACT_LEAD) {
       beginSwing(st.sw, mode, tune);
       st.mode = mode;
+      st.leadAtStart = arrival.t;
+
+      // If the ball will still be sitting up above the net at contact, this is
+      // an attackable ball. Previously the bot judged aggression purely by its
+      // own court position, so it would smash a floater straight into the
+      // kitchen -- right at an opponent standing on the line.
+      const attackable = arrival.bounced === 0
+        && arrival.y > COURT.NET_H_CENTER + 0.40;
+      // Speed-ups keep a kitchen exchange from becoming a stalemate.
+      const speedUp = atKitchen && arrival.y > COURT.NET_H_CENTER + 0.12
+        && Math.random() < 0.25 + d * 0.15;
+
       // A good bot resets with a soft ball when it is pinned deep.
       const pinnedDeep = Math.abs(arrival.z) > COURT.HALF_L * 0.72;
-      st.soft = atKitchen ? Math.random() < 0.18 : (pinnedDeep && Math.random() < 0.3 * d);
-      st.target = pickTarget(sim, p, st, !st.soft && !atKitchen);
+      st.soft = attackable || speedUp
+        ? false
+        : (atKitchen ? Math.random() < 0.18 : (pinnedDeep && Math.random() < 0.3 * d));
+      const aggressive = attackable || speedUp || (!st.soft && !atKitchen);
+      st.target = pickTarget(sim, p, st, aggressive);
     }
   }
 

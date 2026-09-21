@@ -1,5 +1,6 @@
 import * as THREE from '../../vendor/three.module.js';
 import { COURT } from '../game/constants.js';
+import { HORIZON } from './assets.js';
 
 // Renderer + scene + camera. Antialiasing mode is a context-creation choice,
 // so switching it rebuilds the WebGL context; everything else applies live.
@@ -61,10 +62,13 @@ export class View {
     this.container = container;
     this.settings = settings;
     this.scene = new THREE.Scene();
-    this.scene.background = new THREE.Color(0x0e1a24);
-    this.scene.fog = new THREE.Fog(0x0e1a24, 34, 74);
+    // Fog is the horizon colour so the ground plane dissolves into the sky
+    // rather than ending at a visible edge.
+    this.scene.background = new THREE.Color(HORIZON);
+    this.scene.fog = new THREE.Fog(HORIZON, 150, 620);
 
-    this.camera = new THREE.PerspectiveCamera(settings.get('fov'), 1, 0.1, 200);
+    // Far enough to contain the sky dome.
+    this.camera = new THREE.PerspectiveCamera(settings.get('fov'), 1, 0.1, 2200);
     this.camPos = new THREE.Vector3(0, 5, -12);
     this.camLook = new THREE.Vector3(0, 0.8, 0);
     this.side = -1;
@@ -86,10 +90,10 @@ export class View {
   }
 
   buildLights() {
-    const hemi = new THREE.HemisphereLight(0x9fc7e8, 0x2b4a38, 1.05);
+    const hemi = new THREE.HemisphereLight(HORIZON, 0x4a7a44, 1.05);
     this.scene.add(hemi);
 
-    const key = new THREE.DirectionalLight(0xfff3dc, 2.0);
+    const key = new THREE.DirectionalLight(0xfff6e2, 1.95);
     key.position.set(9, 15, -7);
     key.castShadow = true;
     key.shadow.camera.left = -14;
@@ -103,9 +107,12 @@ export class View {
     this.scene.add(key);
     this.key = key;
 
-    const fill = new THREE.DirectionalLight(0x7fb6e0, 0.55);
+    const fill = new THREE.DirectionalLight(0xbcd9f0, 0.32);
     fill.position.set(-8, 9, 10);
     this.scene.add(fill);
+
+    // Direction the sky shader should put the sun in, matching the key light.
+    this.sunDirection = key.position.clone().normalize();
   }
 
   createRenderer() {
@@ -123,10 +130,9 @@ export class View {
       stencil: false,
       alpha: false,
     });
-    renderer.setClearColor(0x0e1a24, 1);
+    renderer.setClearColor(HORIZON, 1);
     renderer.outputColorSpace = THREE.SRGBColorSpace;
-    renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.05;
+    renderer.toneMapping = THREE.NoToneMapping;
     this.renderer = renderer;
     this.container.appendChild(renderer.domElement);
     renderer.domElement.classList.add('game-canvas');
@@ -223,12 +229,12 @@ export class View {
       px = 0; py = 9.4; pz = s * (COURT.HALF_L + 7.4);
       lx = 0; ly = 0.6; lz = -s * 0.6;
     } else if (mode === 'fixed') {
-      px = 0; py = 4.9; pz = s * (COURT.HALF_L + 5.6);
-      lx = 0; ly = 0.9; lz = -s * 1.6;
+      px = 0; py = 5.6; pz = s * (COURT.HALF_L + 6.6);
+      lx = 0; ly = 0.75; lz = -s * 1.1;
     } else {
       // Follow: drifts with the player so the near court never leaves frame.
-      px = focusX * 0.42; py = 4.5; pz = s * (COURT.HALF_L + 5.0) + focusZ * 0.12;
-      lx = focusX * 0.20; ly = 0.95; lz = -s * 1.9;
+      px = focusX * 0.42; py = 5.35; pz = s * (COURT.HALF_L + 6.3) + focusZ * 0.10;
+      lx = focusX * 0.20; ly = 0.75; lz = -s * 1.1;
     }
 
     const k = 1 - Math.exp(-7.5 * dt);

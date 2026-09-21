@@ -21,26 +21,29 @@ export const BALL = {
   FRICTION: 0.80,       // horizontal damping on bounce
   SPIN_TO_VEL: 0.16,    // spin converted to horizontal velocity on bounce
   NET_REST: 0.22,       // how dead the net is
-  MAX_SPEED: 42,
+  MAX_SPEED: 27,
   DEAD_SPEED: 0.9,      // below this after enough bounces the rally is over
 };
 
 export const PLAY = {
   TICK: 1 / 60,
   MAX_SUBSTEPS: 6,
-  PLAYER_R: 0.36,
-  PLAYER_H: 1.72,
-  ACCEL: 46,
-  DECEL: 38,
+  PLAYER_R: 0.28,
+  PLAYER_H: 1.25,
+  ACCEL: 42,
+  DECEL: 35,
   TURN_ASSIST: 1.9,     // extra accel when reversing direction
-  DASH_SPEED: 13.5,
+  DASH_SPEED: 11.2,
   DASH_TIME: 0.17,
   DASH_CD: 0.85,
   DASH_COST: 34,
   STAMINA_MAX: 100,
   STAMINA_REGEN: 26,
-  REACH_BASE: 1.32,     // paddle reach radius from player centre
-  REACH_HEIGHT: 2.25,   // highest ball a player can reach
+  REACH_BASE: 1.20,     // paddle reach radius from player centre
+  REACH_HEIGHT: 2.20,   // highest ball a player can reach (times character scale);
+                        // generous on purpose -- if the smaller characters
+                        // cannot get above a floater, nobody can ever put a
+                        // ball away and rallies never end
   SWING_WINDUP: 0.055,  // delay between release and the paddle being live
   SWING_ACTIVE: 0.14,   // how long contact stays live
   SWING_RECOVER: 0.20,  // cooldown after a swing

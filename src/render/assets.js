@@ -1,6 +1,7 @@
 import * as THREE from '../../vendor/three.module.js';
 import { COURT, BALL } from '../game/constants.js';
 import { netHeightAt } from '../game/ballistics.js';
+import { mulberry32 } from '../game/rng.js';
 
 // Everything visible in the game is built here out of primitives and
 // canvas-drawn textures. No external art assets.
@@ -90,26 +91,26 @@ export function buildCourt(quality = 'high') {
 
   const apron = new THREE.Mesh(
     new THREE.BoxGeometry(APRON_X * 2, 0.18, APRON_Z * 2),
-    mat(0x2f6f4e, { roughness: 0.95 })
+    mat(0x3f7f63, { roughness: 0.95 })
   );
-  apron.material.map = surfaceTexture('#2f6f4e', '#173d2a');
+  apron.material.map = surfaceTexture('#3f7f63', '#24564180');
   apron.position.y = -0.09;
   apron.receiveShadow = quality !== 'off';
   root.add(apron);
 
   const surface = new THREE.Mesh(
     new THREE.BoxGeometry(COURT.HALF_W * 2 + 0.02, 0.02, COURT.HALF_L * 2 + 0.02),
-    mat(0x2a6ba8, { roughness: 0.9 })
+    mat(0x2f7fc4, { roughness: 0.9 })
   );
-  surface.material.map = surfaceTexture('#2a6ba8', '#17416b');
+  surface.material.map = surfaceTexture('#2f7fc4', '#1d568e');
   surface.position.y = 0.006;
   surface.receiveShadow = quality !== 'off';
   root.add(surface);
 
   // The kitchen gets its own shade so the shot-type boundary is readable
   // from the play camera at a glance.
-  const kitchenMat = mat(0x1b7f74, { roughness: 0.9 });
-  kitchenMat.map = surfaceTexture('#1b7f74', '#0d4a43');
+  const kitchenMat = mat(0x1fa091, { roughness: 0.9 });
+  kitchenMat.map = surfaceTexture('#1fa091', '#12665c');
   for (const s of [-1, 1]) {
     const k = new THREE.Mesh(
       new THREE.BoxGeometry(COURT.HALF_W * 2, 0.02, COURT.KITCHEN),
@@ -216,7 +217,7 @@ function buildSurrounds(quality) {
 
   // Perimeter fence, drawn as a light wireframe so it frames the court
   // without blocking the view.
-  const fenceMat = new THREE.LineBasicMaterial({ color: 0x3f5a52, transparent: true, opacity: 0.55 });
+  const fenceMat = new THREE.LineBasicMaterial({ color: 0x2b4a41, transparent: true, opacity: 0.42 });
   const fh = 3.0;
   const pts = [];
   const corners = [
@@ -375,4 +376,135 @@ export function buildBallShadow() {
   m.rotation.x = -Math.PI / 2;
   m.renderOrder = 1;
   return m;
+}
+
+// ---- world backdrop --------------------------------------------------------
+
+// Horizon colour. The fog is set to match it in view.js, so the ground plane
+// fades into the sky instead of ending at a visible edge -- that is what sells
+// the "infinite" grass without actually drawing infinite grass.
+export const HORIZON = 0xbfe0f2;
+const ZENITH = 0x2f7fd0;
+
+const SKY_VERT = `
+varying vec3 vWorld;
+void main() {
+  vWorld = (modelMatrix * vec4(position, 1.0)).xyz;
+  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+}`;
+
+const SKY_FRAG = `
+precision mediump float;
+uniform vec3 top;
+uniform vec3 bottom;
+uniform vec3 sunDir;
+varying vec3 vWorld;
+
+void main() {
+  vec3 dir = normalize(vWorld);
+  // Gradient by height, biased so most of the sky is blue and the pale band
+  // stays close to the horizon.
+  float t = pow(clamp(dir.y, 0.0, 1.0), 0.62);
+  vec3 col = mix(bottom, top, t);
+
+  // Sun: a hot core with a wide soft bloom around it.
+  float d = max(dot(dir, normalize(sunDir)), 0.0);
+  col += vec3(1.0, 0.96, 0.82) * pow(d, 900.0) * 1.1;
+  col += vec3(1.0, 0.93, 0.72) * pow(d, 18.0) * 0.22;
+
+  gl_FragColor = vec4(col, 1.0);
+}`;
+
+function grassTexture() {
+  return canvasTex(256, 256, (g, w, h) => {
+    g.fillStyle = '#5bb04f';
+    g.fillRect(0, 0, w, h);
+    // Broad mottling first, so the field is not one flat green.
+    for (let i = 0; i < 40; i++) {
+      const r = 18 + Math.random() * 46;
+      g.globalAlpha = 0.05 + Math.random() * 0.07;
+      g.fillStyle = Math.random() < 0.5 ? '#77c96a' : '#428f3a';
+      g.beginPath();
+      g.arc(Math.random() * w, Math.random() * h, r, 0, Math.PI * 2);
+      g.fill();
+    }
+    // Then blade-scale speckle for close-up detail.
+    for (let i = 0; i < 4200; i++) {
+      g.globalAlpha = 0.10 + Math.random() * 0.26;
+      g.fillStyle = Math.random() < 0.5 ? '#77cc66' : '#2f6f2c';
+      const x = Math.random() * w, y = Math.random() * h;
+      g.fillRect(x, y, 1, 1 + Math.random() * 2.5);
+    }
+    g.globalAlpha = 1;
+  }, [180, 180]);
+}
+
+// Cartoon cloud: a handful of overlapping squashed spheres.
+function buildCloud(rand) {
+  const g = new THREE.Group();
+  const m = new THREE.MeshStandardMaterial({
+    color: 0xffffff, roughness: 1, metalness: 0,
+    emissive: 0xdfeaf5, emissiveIntensity: 0.35,
+    fog: false, flatShading: false,
+  });
+  const puffs = 4 + Math.floor(rand() * 4);
+  for (let i = 0; i < puffs; i++) {
+    const r = 9 + rand() * 13;
+    const p = new THREE.Mesh(new THREE.SphereGeometry(r, 10, 8), m);
+    p.position.set((i - puffs / 2) * (r * 0.95), (rand() - 0.5) * r * 0.4, (rand() - 0.5) * r * 0.5);
+    p.scale.y = 0.55 + rand() * 0.2;
+    g.add(p);
+  }
+  return g;
+}
+
+// Sky dome, sun, clouds and the ground the court sits on. Everything here is
+// far away and unlit by the court lights, so it is cheap.
+export function buildSky(sunDirection) {
+  const root = new THREE.Group();
+  root.name = 'sky';
+
+  const dome = new THREE.Mesh(
+    new THREE.SphereGeometry(900, 32, 20),
+    new THREE.ShaderMaterial({
+      uniforms: {
+        top: { value: new THREE.Color(ZENITH) },
+        bottom: { value: new THREE.Color(HORIZON) },
+        sunDir: { value: sunDirection.clone().normalize() },
+      },
+      vertexShader: SKY_VERT,
+      fragmentShader: SKY_FRAG,
+      side: THREE.BackSide,
+      depthWrite: false,
+      fog: false,
+    })
+  );
+  dome.renderOrder = -1;
+  root.add(dome);
+
+  // Ground plane large enough that its edge is well past the fog distance,
+  // so it is never seen ending.
+  const ground = new THREE.Mesh(
+    new THREE.PlaneGeometry(1600, 1600),
+    new THREE.MeshStandardMaterial({
+      color: 0xffffff, map: grassTexture(), roughness: 1, metalness: 0,
+    })
+  );
+  ground.rotation.x = -Math.PI / 2;
+  ground.position.y = -0.22;
+  ground.receiveShadow = true;
+  root.add(ground);
+
+  const rand = mulberry32(90210);
+  for (let i = 0; i < 11; i++) {
+    const cloud = buildCloud(rand);
+    const ang = rand() * Math.PI * 2;
+    // Far enough out and high enough that a cloud never crowds the top of the
+    // play camera's frame.
+    const dist = 320 + rand() * 260;
+    cloud.position.set(Math.cos(ang) * dist, 105 + rand() * 90, Math.sin(ang) * dist);
+    cloud.scale.setScalar(1.0 + rand() * 1.1);
+    root.add(cloud);
+  }
+  return root;
 }

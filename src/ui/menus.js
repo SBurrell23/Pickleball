@@ -1,121 +1,6 @@
 import { CHARACTERS, getCharacter } from '../game/characters.js';
 import { DEFAULTS } from '../core/settings.js';
-
-// Character portraits are drawn to a canvas from the same `build` description
-// the 3D rig uses, so the select screen and the court agree.
-function drawPortrait(g, W, H, def) {
-  const c = def.colors, b = def.build;
-  const hex = (n) => '#' + n.toString(16).padStart(6, '0');
-  g.clearRect(0, 0, W, H);
-
-  const cx = W / 2;
-  const s = (W / 120) * b.scale;
-  const bulk = b.bulk;
-
-  g.save();
-  g.translate(cx, H * 0.96);
-
-  // Ground shadow
-  g.fillStyle = 'rgba(0,0,0,0.30)';
-  g.beginPath();
-  g.ellipse(0, -2, 26 * s * bulk, 7 * s, 0, 0, Math.PI * 2);
-  g.fill();
-
-  // Legs
-  g.fillStyle = hex(c.secondary);
-  for (const sx of [-1, 1]) {
-    g.fillRect(sx * 7 * s * bulk - 5 * s, -40 * s, 10 * s, 40 * s);
-  }
-  g.fillStyle = hex(c.trim);
-  for (const sx of [-1, 1]) {
-    g.fillRect(sx * 7 * s * bulk - 6 * s, -7 * s, 13 * s, 7 * s);
-  }
-
-  // Torso
-  g.fillStyle = hex(c.primary);
-  const tw = 30 * s * bulk, th = 42 * s;
-  if (b.torso === 'blocky') {
-    g.fillRect(-tw / 2, -40 * s - th, tw, th);
-  } else {
-    g.beginPath();
-    const top = b.torso === 'slim' ? tw * 0.78 : tw * 0.86;
-    g.moveTo(-top / 2, -40 * s - th);
-    g.lineTo(top / 2, -40 * s - th);
-    g.lineTo(tw / 2, -40 * s);
-    g.lineTo(-tw / 2, -40 * s);
-    g.closePath();
-    g.fill();
-  }
-  g.fillStyle = hex(c.secondary);
-  g.fillRect(-4 * s, -40 * s - th, 8 * s, th);
-
-  // Arms
-  g.strokeStyle = hex(c.skin);
-  g.lineWidth = 7 * s;
-  g.lineCap = 'round';
-  g.beginPath();
-  g.moveTo(-tw / 2, -40 * s - th + 6 * s);
-  g.lineTo(-tw / 2 - 12 * s, -50 * s);
-  g.stroke();
-  g.beginPath();
-  g.moveTo(tw / 2, -40 * s - th + 6 * s);
-  g.lineTo(tw / 2 + 15 * s, -66 * s);
-  g.stroke();
-
-  // Paddle
-  g.save();
-  g.translate(tw / 2 + 17 * s, -72 * s);
-  g.rotate(-0.35);
-  g.fillStyle = hex(c.trim);
-  g.fillRect(-9 * s, -20 * s, 18 * s, 24 * s);
-  g.fillStyle = hex(c.primary);
-  g.fillRect(-7 * s, -18 * s, 14 * s, 20 * s);
-  g.fillStyle = '#24282e';
-  g.fillRect(-2.5 * s, 2 * s, 5 * s, 10 * s);
-  g.restore();
-
-  // Head
-  const hy = -40 * s - th - 13 * s;
-  g.fillStyle = hex(c.skin);
-  if (b.head === 'square') g.fillRect(-12 * s, hy - 12 * s, 24 * s, 25 * s);
-  else { g.beginPath(); g.arc(0, hy, 13 * s, 0, Math.PI * 2); g.fill(); }
-
-  // Crest
-  g.fillStyle = hex(c.trim);
-  switch (b.crest) {
-    case 'mohawk':
-      for (let i = -2; i <= 2; i++) {
-        const hgt = (i === 0 ? 16 : 11) * s;
-        g.beginPath();
-        g.moveTo(i * 4.5 * s - 2.5 * s, hy - 11 * s);
-        g.lineTo(i * 4.5 * s, hy - 11 * s - hgt);
-        g.lineTo(i * 4.5 * s + 2.5 * s, hy - 11 * s);
-        g.closePath(); g.fill();
-      }
-      break;
-    case 'ponytail':
-      g.beginPath();
-      g.ellipse(-15 * s, hy + 4 * s, 5 * s, 12 * s, 0.4, 0, Math.PI * 2);
-      g.fill();
-      break;
-    case 'bun':
-      g.beginPath(); g.arc(-2 * s, hy - 14 * s, 7 * s, 0, Math.PI * 2); g.fill();
-      break;
-    case 'cap':
-      g.fillStyle = hex(c.primary);
-      g.beginPath(); g.arc(0, hy - 2 * s, 13.5 * s, Math.PI, 0); g.fill();
-      g.fillRect(0, hy - 4 * s, 20 * s, 3.5 * s);
-      break;
-    case 'headband':
-      g.fillRect(-13.5 * s, hy - 8 * s, 27 * s, 5 * s);
-      break;
-    default:
-      g.fillStyle = hex(c.primary);
-      g.fillRect(-13.5 * s, hy - 7 * s, 27 * s, 4.5 * s);
-      g.fillRect(0, hy - 8 * s, 19 * s, 3.5 * s);
-  }
-  g.restore();
-}
+import { drawPortrait } from './portrait.js';
 
 const STAT_LABELS = {
   speed: 'Speed', power: 'Power', reach: 'Reach', control: 'Control', charge: 'Charge',
@@ -154,7 +39,7 @@ const SCHEMA = {
   ],
   Gameplay: [
     { key: 'difficulty', label: 'CPU difficulty', type: 'select',
-      options: [['easy', 'Easy'], ['normal', 'Normal'], ['hard', 'Hard'], ['pro', 'Pro']] },
+      options: [['easy', 'Easy'], ['normal', 'Normal'], ['hard', 'Hard']] },
     { key: 'meterAssist', label: 'Timing window', type: 'range',
       min: 0.7, max: 1.7, step: 0.1,
       fmt: (v) => (v < 0.95 ? 'Tight' : v < 1.15 ? 'Standard' : v < 1.45 ? 'Wide' : 'Very wide'),
@@ -242,6 +127,10 @@ export class Menus {
         break;
       case 'mode':
         this.data.mode = val;
+        this.render();
+        break;
+      case 'difficulty':
+        this.settings.set('difficulty', val);
         this.render();
         break;
       case 'confirmChar': this.confirmChar(); break;
@@ -429,10 +318,22 @@ export class Menus {
     const routeLabel = this.pendingRoute === 'local' ? 'Start Match'
       : this.pendingRoute === 'host' ? 'Create Room' : 'Continue';
 
+    const diff = this.settings.get('difficulty');
+    const DIFFS = [['easy', 'Easy'], ['normal', 'Normal'], ['hard', 'Hard']];
     const modePicker = this.pendingRoute === 'join' ? '' : `
-      <div class="seg">
-        <button class="${mode === 'singles' ? 'on' : ''}" data-act="mode" data-val="singles">Singles</button>
-        <button class="${mode === 'doubles' ? 'on' : ''}" data-act="mode" data-val="doubles">Doubles</button>
+      <div class="picker">
+        <span class="picker-label">Match</span>
+        <div class="seg">
+          <button class="${mode === 'singles' ? 'on' : ''}" data-act="mode" data-val="singles">Singles</button>
+          <button class="${mode === 'doubles' ? 'on' : ''}" data-act="mode" data-val="doubles">Doubles</button>
+        </div>
+      </div>
+      <div class="picker">
+        <span class="picker-label">CPU difficulty</span>
+        <div class="seg">
+          ${DIFFS.map(([v, label]) => `<button class="${diff === v ? 'on' : ''}"
+            data-act="difficulty" data-val="${v}">${label}</button>`).join('')}
+        </div>
       </div>`;
 
     return `<div class="menu-panel wide">

@@ -6,13 +6,13 @@ import { mulberry32, randDisc } from './rng.js';
 // Flight-time envelopes per shot archetype. Power squeezes the flight time
 // toward the minimum, which is what makes a well-timed drive feel fast.
 const FLIGHT = {
-  [SHOT.DRIVE]:  { base: 0.95, min: 0.40, spin:  1.00 },
-  [SHOT.SMASH]:  { base: 0.55, min: 0.26, spin:  1.25 },
-  [SHOT.VOLLEY]: { base: 0.70, min: 0.38, spin:  0.55 },
-  [SHOT.DINK]:   { base: 0.86, min: 0.62, spin: -0.60 },
-  [SHOT.DROP]:   { base: 1.15, min: 0.80, spin: -0.90 },
-  [SHOT.LOB]:    { base: 1.90, min: 1.35, spin: -0.30 },
-  [SHOT.SERVE]:  { base: 1.05, min: 0.72, spin:  0.20 },
+  [SHOT.DRIVE]:  { base: 1.32, min: 0.70, spin:  1.00 },
+  [SHOT.SMASH]:  { base: 0.70, min: 0.34, spin:  1.35 },
+  [SHOT.VOLLEY]: { base: 1.02, min: 0.64, spin:  0.55 },
+  [SHOT.DINK]:   { base: 1.06, min: 0.80, spin: -0.60 },
+  [SHOT.DROP]:   { base: 1.38, min: 1.00, spin: -0.90 },
+  [SHOT.LOB]:    { base: 2.15, min: 1.60, spin: -0.30 },
+  [SHOT.SERVE]:  { base: 1.38, min: 0.95, spin:  0.20 },
 };
 
 const NET_CLEARANCE = {
@@ -458,7 +458,7 @@ export class Sim {
     const dx = bp.x - p.x, dz = bp.z - p.z;
     const horiz = Math.hypot(dx, dz);
     // High balls are harder to get a paddle on at full stretch.
-    const shrink = 1 - 0.26 * Math.max(0, (bp.y - 1.25) / 1.1);
+    const shrink = 1 - 0.26 * Math.max(0, (bp.y - 0.95) / 0.85);
     return horiz <= p.reach * shrink;
   }
 
@@ -574,6 +574,17 @@ export class Sim {
       const off = randDisc(this.rand, scatter);
       tx += off.x;
       tz += off.z * 1.35;
+      // Scatter must never push the aim back over the net -- a mistimed shot
+      // still travels forward, it just lands somewhere worse. Re-clamp after
+      // the roll so bad timing costs you depth and width, not direction.
+      if (isServe) {
+        tx = Math.max(0.2, Math.min(COURT.HALF_W + 0.35, Math.abs(tx))) * this.serveTargetXSign;
+        tz = oppSide * Math.max(COURT.KITCHEN - 0.35,
+          Math.min(COURT.HALF_L + 0.6, Math.abs(tz)));
+      } else {
+        tx = Math.max(-(COURT.HALF_W + 1.5), Math.min(COURT.HALF_W + 1.5, tx));
+        tz = oppSide * Math.max(0.35, Math.min(COURT.HALF_L + 1.7, Math.abs(tz)));
+      }
     }
 
     const from = {
@@ -591,7 +602,9 @@ export class Sim {
     const spin = env.spin * (0.55 + 0.6 * Math.min(1, power));
     const clearance = NET_CLEARANCE[shot] ?? 0.12;
 
-    const sol = solveToLand(from, { x: tx, z: tz }, T, spin, clearance);
+    // A well-struck ball finds the arc that clears the net; a mistimed one does not.
+    const allowLoft = quality !== QUALITY.WEAK;
+    const sol = solveToLand(from, { x: tx, z: tz }, T, spin, clearance, allowLoft);
     const v = sol.v;
     clampSpeed(v, BALL.MAX_SPEED);
 

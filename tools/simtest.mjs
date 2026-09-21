@@ -93,31 +93,43 @@ for (let s = 1; s <= 8; s++) {
 }
 console.log(`  strong ${gapWins[0]} / weak ${gapWins[1]}`);
 
-console.log('\n=== doubles smoke test ===');
-const dbl = playGame(31337, [0.6, 0.6], 'doubles');
-console.log(`  final ${dbl.sim.score[0]}-${dbl.sim.score[1]} winner=${dbl.sim.winner} ` +
-  `avg rally=${(dbl.stats.rallies.reduce((a, b) => a + b, 0) / dbl.stats.rallies.length).toFixed(2)}`);
-console.log('  reasons:', JSON.stringify(dbl.stats.reasons));
+// Doubles gets its own run and its own band: four players cover the court far
+// better than two, so rallies there are legitimately longer. Holding both modes
+// to a single number would either mask a broken singles game or flag a healthy
+// doubles one.
+console.log('\n=== doubles ===');
+const dblRuns = [];
+for (let s = 1; s <= 3; s++) {
+  const d = playGame(s * 31337, [0.6, 0.6], 'doubles');
+  const a2 = d.stats.rallies.reduce((x, y) => x + y, 0) / d.stats.rallies.length;
+  dblRuns.push({ sim: d.sim, avg: a2 });
+  console.log(`  game ${s}: ${d.sim.score[0]}-${d.sim.score[1]} ` +
+    `winner=${d.sim.winner} avg rally=${a2.toFixed(2)}`);
+}
+const dblAvg = dblRuns.reduce((a, r) => a + r.avg, 0) / dblRuns.length;
+const dblFinished = dblRuns.filter((r) => r.sim.winner >= 0).length;
+console.log(`  mean rally ${dblAvg.toFixed(2)}, ${dblFinished}/3 reached a winner`);
 
 // ---- assertions -----------------------------------------------------------
 // The bands are deliberately wide: the AI uses unseeded randomness, so these
 // catch real regressions (rallies that never end, games that cannot finish,
 // difficulty that stopped mattering) without being flaky.
-const dblAvg = dbl.stats.rallies.reduce((a, b) => a + b, 0) / dbl.stats.rallies.length;
 const failures = [];
 const check = (ok, msg) => { if (!ok) failures.push(msg); };
 
 const finished = wins[0] + wins[1];
 check(finished >= 7, `only ${finished}/8 singles games reached a winner`);
-check(avg >= 3 && avg <= 20, `avg shots/rally ${avg.toFixed(2)} outside the playable band 3-20`);
+check(avg >= 3 && avg <= 16, `singles avg shots/rally ${avg.toFixed(2)} outside the band 3-16`);
 check(totalR >= 60, `only ${totalR} rallies across 8 games -- points are ending too fast`);
 check(gapWins[0] >= 6, `strong bot won only ${gapWins[0]}/8 against a much weaker one`);
-check(dbl.sim.winner >= 0, 'doubles game never reached a winner');
-check(dblAvg >= 3 && dblAvg <= 20, `doubles avg rally ${dblAvg.toFixed(2)} outside 3-20`);
-// Every point ending the same way would mean a rule or the AI has broken.
+check(dblFinished === 3, `only ${dblFinished}/3 doubles games reached a winner`);
+check(dblAvg >= 4 && dblAvg <= 30, `doubles mean rally ${dblAvg.toFixed(2)} outside 4-30`);
+// Rallies ending because nobody reached the ball is a legitimate outcome and
+// dominates in bot-vs-bot play, so this checks for "always the same way"
+// rather than policing the mix.
 const topReason = Math.max(...Object.values(allReasons));
-check(topReason / totalR < 0.9,
-  'over 90% of points ended for a single reason -- something is degenerate');
+check(Object.keys(allReasons).length >= 3 && topReason / totalR < 0.95,
+  'points are essentially all ending the same way -- a rule or the AI has broken');
 // If serves stop coming back, or returns stop being answered, rallies collapse
 // to two shots and the game stops being a game.
 check(returnRate > 0.6, `only ${pct(flow.returns, goodServes)} of good serves came back`);

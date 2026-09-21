@@ -8,7 +8,7 @@ import { Net } from './net/net.js';
 import { Game } from './game/game.js';
 import { CHARACTERS } from './game/characters.js';
 import { createBotState } from './game/ai.js';
-import { buildCourt } from './render/assets.js';
+import { buildCourt, buildSky } from './render/assets.js';
 
 const BOT_NAMES = ['Ruby', 'Mako', 'Juno', 'Vale', 'Nix', 'Otto'];
 
@@ -39,6 +39,7 @@ class App {
     // session rather than being rebuilt per match.
     this.court = buildCourt(settings.get('shadows'));
     this.view.scene.add(this.court);
+    this.view.scene.add(buildSky(this.view.sunDirection));
 
     this.game = null;
     this.net = null;

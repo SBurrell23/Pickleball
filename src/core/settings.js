@@ -23,7 +23,7 @@ export const DEFAULTS = {
 
   // Gameplay / feel
   meterAssist: 1.0,      // 1.0 = normal sweet spots, up to 1.6 = forgiving
-  difficulty: 'normal',  // easy | normal | hard | pro
+  difficulty: 'normal',  // easy | normal | hard
   aimSensitivity: 1.0,
   showReticle: true,
   showLanding: true,
@@ -37,7 +37,7 @@ export const DEFAULTS = {
   lastCharacter: 'volley',
 };
 
-export const DIFFICULTY_LEVEL = { easy: 0.30, normal: 0.55, hard: 0.75, pro: 0.92 };
+export const DIFFICULTY_LEVEL = { easy: 0.30, normal: 0.58, hard: 0.86 };
 
 function clampNum(v, lo, hi, dflt) {
   const n = typeof v === 'number' ? v : parseFloat(v);
@@ -54,7 +54,7 @@ const RANGES = {
 const ENUMS = {
   antialias: ['off', 'fxaa', 'msaa'],
   shadows: ['off', 'low', 'high'],
-  difficulty: ['easy', 'normal', 'hard', 'pro'],
+  difficulty: ['easy', 'normal', 'hard'],
   cameraMode: ['follow', 'fixed', 'broadcast'],
   colorblind: ['off', 'deuter', 'protan', 'tritan'],
 };
