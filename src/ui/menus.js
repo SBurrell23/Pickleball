@@ -138,9 +138,11 @@ const SWINGS = [
       + 'long and you will CHOKE.',
   },
   {
-    key: 'Right Click', name: 'Dink', tag: 'Half bar',
-    what: 'The same bar at half the length, so the sweet spot arrives in half '
-      + 'the time. The answer when a ball comes back too fast to fill a drive.',
+    key: 'Right Click', name: 'Dink', tag: 'Short bar',
+    what: 'The only response to a ball that has bounced in your kitchen -- '
+      + 'nothing else can lift one back over. A shorter bar than the drive, so '
+      + 'the sweet spot comes sooner, and the way to take the pace off a rally '
+      + 'before somebody puts it away.',
     cost: 'It can never hit hard -- you stay in the rally rather than win it. '
       + 'Hold too long and you will CHOKE.',
   },
