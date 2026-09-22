@@ -23,6 +23,7 @@ music track.
 | Mouse | Aim. The reticle replaces the system cursor; the marker on the far court is where the ball will actually land. |
 | Hold left click | **Drive shot.** Full power bar — all the pace you can get, but the sweet spot is a long way up. |
 | Hold right click | **Dink shot.** Half-length bar — sweet spot in half the time, but it can never hit hard. |
+| Hover the net | The mesh fades out around the cursor, so you can see the far kitchen through the thing you are trying to drop a ball over. |
 | Release | Swing. Stop the marker in the sweet spot. Let the bar fill all the way into the red and you have **choked** — the ball is netted or long, every time. |
 | `Space` | Hold during a **drive** to loop it into a lob. Does nothing on a dink — that is already the soft shot. |
 | `Shift` | Dash. Costs stamina. |
@@ -233,11 +234,12 @@ Graphics, audio and feel are all adjustable from the menu and persist locally.
   camera framing and the mouse-to-court aim mapping are tuned around one lens.
 - **Audio** — master, effects, music and crowd ambience, plus mute-on-blur.
 - **Gameplay** — CPU difficulty (Easy / Normal / Hard / Extreme, also pickable
-  straight from the exhibition screen), camera mode, aim sensitivity, landing
-  marker toggle, and colourblind palettes. Nothing here changes what the
-  simulation does to a shot: a slider that widened the sweet spot used to live
-  in this list and was removed once it was measured, because it more than
-  doubled a player's perfect rate and the host never validated it.
+  straight from the exhibition screen), aim sensitivity, landing marker
+  toggle, and colourblind palettes. Nothing here changes what the simulation
+  does to a shot, or how much of the court you can see: a slider that widened
+  the sweet spot used to live in this list and went once it was measured, and
+  the camera-mode picker went with it for the same reason -- a framing choice
+  is a competitive one. There is one camera and it follows you.
 - **Cursor** — the system cursor is hidden during a match and the reticle you
   aim with replaces it, so its shape, colour and size are configurable, with a
   live preview drawn over the four court colours it has to stay readable on.

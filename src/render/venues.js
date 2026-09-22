@@ -25,8 +25,8 @@ export const VENUES = [
     },
     scatter: { kind: 'shrub', count: 340, colors: [0x3f8f3a, 0x4fa348, 0x336f30, 0x5cb054, 0x2d6b2f] },
     fence: { post: 0x2f3a42, mesh: 'rgba(206, 218, 224, 0.95)' },
-    // Rec play: a few people who happened to be passing, not a crowd.
-    stands: { color: 0x404a55, crowd: 0.13 },
+    // Rec play: a scattering of people, not a crowd.
+    stands: { color: 0x404a55, crowd: 0.26 },
     lights: { show: true, pole: 0x2b333c, lamp: 0xfff6d8 },
     sky: { zenith: 0x2f7fd0, horizon: 0xbfe0f2 },
     clouds: 11,
@@ -45,7 +45,7 @@ export const VENUES = [
     },
     scatter: { kind: 'pine', count: 260, colors: [0x24422a, 0x1b3320, 0x2e5233, 0x152a1a] },
     fence: { post: 0x23282a, mesh: 'rgba(150, 165, 160, 0.75)' },
-    stands: { color: 0x2a2f2c, crowd: 0.16 },
+    stands: { color: 0x2a2f2c, crowd: 0.32 },
     lights: { show: true, pole: 0x1d2220, lamp: 0xd8ffc8 },
     sky: { zenith: 0x1d3347, horizon: 0x6f8a84 },
     clouds: 5,
@@ -65,7 +65,7 @@ export const VENUES = [
     },
     scatter: { kind: 'cactus', count: 200, colors: [0x5f8a4a, 0x4c7040, 0x6f9a55, 0x8a7a52] },
     fence: { post: 0x6a5a48, mesh: 'rgba(222, 208, 180, 0.9)' },
-    stands: { color: 0x7a6650, crowd: 0.26 },
+    stands: { color: 0x7a6650, crowd: 0.52 },
     lights: { show: true, pole: 0x5a4c3c, lamp: 0xfff0c8 },
     sky: { zenith: 0x3f8ecb, horizon: 0xe8d4a8 },
     clouds: 3,
@@ -88,7 +88,7 @@ export const VENUES = [
     // the ground reads as wet.
     ponds: { count: 9, color: 0x2f6f8c, rim: 0x4a4a32, size: [3.5, 7] },
     fence: { post: 0x4a4032, mesh: 'rgba(190, 200, 190, 0.8)' },
-    stands: { color: 0x5a4c3a, crowd: 0.22 },
+    stands: { color: 0x5a4c3a, crowd: 0.44 },
     lights: { show: true, pole: 0x3d352a, lamp: 0xfff4d0 },
     sky: { zenith: 0x3a80a8, horizon: 0xc2d8cf },
     clouds: 14,
@@ -116,8 +116,9 @@ export const VENUES = [
     // the play camera is close enough to see.
     arena: { wall: 0x1c2438, fascia: 0x3f63b8 },
     fence: { style: 'wall', post: 0x1b2440, mesh: 'rgba(150,170,200,0.5)' },
-    // The one court that is genuinely sold out.
-    stands: { color: 0x232c44, crowd: 1, tall: true },
+    // Near enough sold out -- a handful of empty seats, which reads as a
+    // real crowd where a perfectly solid block reads as wallpaper.
+    stands: { color: 0x232c44, crowd: 0.92, tall: true },
     lights: { show: true, pole: 0x1a2134, lamp: 0xffffff },
     sky: { zenith: 0x2c5290, horizon: 0x9db6cf },
     clouds: 0,

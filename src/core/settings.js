@@ -29,7 +29,6 @@ export const DEFAULTS = {
   cursorColor: 'ball',
   cursorScale: 1.0,
   showLanding: true,
-  cameraMode: 'follow',  // follow | fixed | broadcast
   colorblind: 'off',     // off | deuter | protan | tritan
   venue: 'rec',          // which court to play on outside the season
   screenShakeOnHit: true,
@@ -56,7 +55,6 @@ const ENUMS = {
   antialias: ['off', 'fxaa', 'msaa'],
   shadows: ['off', 'low', 'high'],
   difficulty: ['easy', 'normal', 'hard', 'extreme'],
-  cameraMode: ['follow', 'fixed', 'broadcast'],
   colorblind: ['off', 'deuter', 'protan', 'tritan'],
   venue: ['rec', 'forest', 'desert', 'marsh', 'championship'],
   cursorStyle: ['reticle', 'ring', 'cross', 'dot', 'chevron', 'target'],

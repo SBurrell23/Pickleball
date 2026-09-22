@@ -94,8 +94,6 @@ const SCHEMA = {
       options: [['easy', 'Easy'], ['normal', 'Normal'], ['hard', 'Hard'],
         ['extreme', 'Extreme']],
       note: 'Extreme bots read the ball almost instantly, cover the whole court and only sprint for balls they would otherwise miss.' },
-    { key: 'cameraMode', label: 'Camera', type: 'select',
-      options: [['follow', 'Follow'], ['fixed', 'Fixed'], ['broadcast', 'Broadcast']] },
     { key: 'aimSensitivity', label: 'Aim sensitivity', type: 'range',
       min: 0.3, max: 2.5, step: 0.05, fmt: (v) => v.toFixed(2) + 'x' },
     { key: 'cursorStyle', label: 'Cursor', type: 'select', options: CURSOR_STYLES,
@@ -115,7 +113,7 @@ function pct(v) { return Math.round(v * 100) + '%'; }
 
 const CONTROLS = [
   ['W A S D', 'Move. W is always toward the net.'],
-  ['Mouse', 'Aim. The marker on the far court is where the ball will land.'],
+  ['Mouse', 'Aim. The marker on the far court is where the ball will land. Point at the net and it fades out around the cursor, so you can see the kitchen you are trying to drop into.'],
   ['Hold Left Click', 'Drive shot. Full power bar — all the pace you can get, but the sweet spot is a long way up.'],
   ['Hold Right Click', 'Dink shot. Half-length bar — sweet spot in half the time, but it can never hit hard.'],
   ['Release', 'Swing. Stop the marker in the sweet spot. Let the bar fill all the way and it turns red -- release in the red and you have <b>choked</b>: the ball goes into the net or over the baseline, every time.'],
@@ -318,7 +316,7 @@ export class Menus {
         <span class="picker-label">Court</span>
         <div class="venues">${cards}</div>
       </div>
-      <p class="muted fine">${escapeHtml(getVenue(venueId).blurb)}</p>`;
+      <p class="muted fine venue-blurb">${escapeHtml(getVenue(venueId).blurb)}</p>`;
   }
 
   // ---- exhibition ---------------------------------------------------------

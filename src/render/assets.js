@@ -272,9 +272,23 @@ export function buildCourt(quality = 'high', venueId) {
   line(0, COURT.KITCHEN + halfSeg, W, halfSeg * 2);
   line(0, -(COURT.KITCHEN + halfSeg), W, halfSeg * 2);
 
-  root.add(buildNet(quality));
+  const net = buildNet(quality);
+  root.add(net);
+  root.userData.net = net.userData.net;
   root.add(buildSurrounds(quality, v));
   return root;
+}
+
+/**
+ * Open a feathered window in the net at a world point, or close it.
+ * `radius` of 0 puts the net back. The court group carries the reference, so
+ * callers do not have to know how the net is built.
+ */
+export function setNetWindow(court, x, y, radius) {
+  const net = court && court.userData.net;
+  if (!net) return;
+  net.userData.hole.value.set(x, y, 0);
+  net.userData.holeR.value = radius;
 }
 
 function buildNet(quality) {
@@ -308,13 +322,47 @@ function buildNet(quality) {
   geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
   geo.setIndex(idx);
   geo.computeVertexNormals();
+  // The mesh fades out around wherever the cursor is pointing at it, so you
+  // can see the far kitchen through the net you are trying to drop a ball
+  // into. Done in the shader rather than by hiding the whole net: a hard
+  // on/off would be a bigger change to the picture than the thing it is
+  // helping you see.
+  //
+  // alphaTest has to go for this -- it would clip the feather back into a
+  // hard edge -- so the net is depth-write-off and drawn late instead.
   const netMat = new THREE.MeshStandardMaterial({
     color: 0x1a1d22, map: netTexture(), transparent: true,
-    alphaTest: 0.32, side: THREE.DoubleSide, roughness: 0.9,
+    depthWrite: false, side: THREE.DoubleSide, roughness: 0.9,
   });
+  const hole = { value: new THREE.Vector3(0, -99, 0) };
+  const holeR = { value: 0 };
+  netMat.onBeforeCompile = (shader) => {
+    shader.uniforms.uHole = hole;
+    shader.uniforms.uHoleR = holeR;
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vNetPos;')
+      .replace('#include <begin_vertex>',
+        '#include <begin_vertex>\nvNetPos = (modelMatrix * vec4(position, 1.0)).xyz;');
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>',
+        '#include <common>\nvarying vec3 vNetPos;\nuniform vec3 uHole;\nuniform float uHoleR;')
+      .replace('#include <map_fragment>',
+        `#include <map_fragment>
+        if (uHoleR > 0.0) {
+          // The net is a plane at z = 0, so distance in x and y is the whole
+          // story. Smoothstep from clear at the centre to untouched at the
+          // rim; the inner 45% is fully open so there is a real window
+          // rather than just a dim patch.
+          float d = distance(vNetPos.xy, uHole.xy);
+          diffuseColor.a *= smoothstep(uHoleR * 0.45, uHoleR, d);
+        }`);
+  };
   const net = new THREE.Mesh(geo, netMat);
   net.renderOrder = 2;
+  net.userData.hole = hole;
+  net.userData.holeR = holeR;
   g.add(net);
+  g.userData.net = net;
 
   // White tape along the top edge, following the same sag.
   const tapePts = [];

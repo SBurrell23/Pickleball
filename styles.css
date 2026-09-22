@@ -495,6 +495,10 @@ canvas.big-portrait { width: 100%; height: 190px; display: block; }
   cursor: pointer;
 }
 .venue-card strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* The blurb belongs to the grid above it, but sitting flush against the
+   buttons it read as a caption on the bottom row rather than on the
+   selection. */
+.venue-blurb { margin-top: 9px !important; }
 .venue-card.on { background: var(--court); color: var(--line); }
 .venue-card.on:hover { background: var(--court-dark); }
 .venue-card:disabled { opacity: 0.55; cursor: default; }

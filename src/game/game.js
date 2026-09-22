@@ -3,12 +3,14 @@ import { COURT, PLAY, SWING, QUALITY } from './constants.js';
 import { Sim, PHASE, SWINGSTATE } from './sim.js';
 import { swingTuning } from './characters.js';
 import { createBotState, updateBot } from './ai.js';
-import { predictLanding } from './ballistics.js';
+import { predictLanding, netHeightAt } from './ballistics.js';
 import {
   MODE, createSwingState, beginSwing, updateSwing, releaseSwing,
   sweetZone, classifyShot, lobBonus,
 } from './swing.js';
-import { buildBall, buildBallShadow, animateCrowd, cheerCrowd } from '../render/assets.js';
+import {
+  buildBall, buildBallShadow, animateCrowd, cheerCrowd, setNetWindow,
+} from '../render/assets.js';
 import { buildCharacter, animateCharacter, paddleWorldPos } from '../render/character.js';
 import { Effects } from '../render/fx.js';
 import { SnapshotBuffer, ErrorCorrector } from '../net/interp.js';
@@ -19,6 +21,11 @@ const MAX_CATCHUP = 5;
 
 // Charge sparks tint toward this as the meter fills.
 const SPARK_HOT = new THREE.Color(0xfff3a8);
+
+// How wide the window in the net opens, in metres. At the play camera's
+// distance this is about forty pixels across -- wide enough to read the far
+// kitchen through and no wider, because the net is still the obstacle.
+const NET_WINDOW_R = 0.8;
 
 export class Game {
   constructor({ view, hud, audio, input, settings, net, mode, court }) {
@@ -63,6 +70,10 @@ export class Game {
     this._sparkColor = new THREE.Color();
     this.sparkAccum = [];
     this.lastNeedleDir = 1;
+    // How open the net window is, 0..1. Eased rather than switched, so
+    // dragging the cursor on and off the net does not flicker.
+    this.netWindow = 0;
+    this._netPt = new THREE.Vector3();
 
     this.snapBuf = new SnapshotBuffer();
     this.corrector = new ErrorCorrector();
@@ -154,6 +165,7 @@ export class Game {
   }
 
   dispose() {
+    setNetWindow(this.court, 0, 0, 0);
     this.running = false;
     if (this.ballObj) this.scene.remove(this.ballObj);
     if (this.ballShadow) this.scene.remove(this.ballShadow);
@@ -177,6 +189,33 @@ export class Game {
     const a = this.input.axis();
     const s = this.me.side;
     return { mx: a.x * s, mz: a.z * -s };
+  }
+
+  // Fade a window in the net wherever the cursor is pointing at it, so the
+  // far kitchen is visible through the thing you are trying to clear. Only
+  // while the cursor is actually on the net -- off it, the net closes again.
+  updateNetWindow(dt) {
+    // Paused means a menu is over the court and the pointer belongs to it,
+    // so the net should not be reacting to where that pointer happens to be.
+    if (this.paused) {
+      if (this.netWindow !== 0) {
+        this.netWindow = 0;
+        setNetWindow(this.court, 0, 0, 0);
+      }
+      return;
+    }
+    const m = this.input.mouse;
+    const hit = this.view.netPoint(m.ndcX, m.ndcY, this._netPt);
+    // A little past the posts and the tape, so the window does not snap shut
+    // right at the edge of the thing you are aiming over.
+    const over = !!hit
+      && Math.abs(hit.x) <= COURT.HALF_W + 0.25
+      && hit.y > -0.2 && hit.y < netHeightAt(hit.x) + 0.3;
+    const want = over ? 1 : 0;
+    this.netWindow += (want - this.netWindow) * (1 - Math.exp(-14 * dt));
+    if (over) this._netHold = { x: hit.x, y: hit.y };
+    const at = this._netHold || { x: 0, y: 0 };
+    setNetWindow(this.court, at.x, at.y, this.netWindow * NET_WINDOW_R);
   }
 
   updateAim() {
@@ -778,6 +817,7 @@ export class Game {
       animateCrowd(this.crowd, dt, this.crowdShown);
     }
 
+    this.updateNetWindow(dt);
     this.fx.update(dt, this.view.camera, this.view.renderer.domElement.height);
     this.view.updateCamera(me.x, me.z, dt, this.fx);
 

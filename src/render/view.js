@@ -309,24 +309,19 @@ export class View {
 
   setSide(side) { this.side = side; }
 
+  // One camera. It drifts with the player so the near court never leaves
+  // frame. There were fixed and broadcast options too, and they were the one
+  // thing left in settings that changed how much of the court you could see
+  // -- a framing choice is a competitive one, and everything else that was
+  // has already gone.
   updateCamera(focusX, focusZ, dt, fx) {
-    const mode = this.settings.get('cameraMode');
     const s = this.side;
-    let px, py, pz, lx, ly, lz;
-
-    if (mode === 'broadcast') {
-      // Pulled well back: on the narrow lens this was framing less than the
-      // follow camera, which is not what a broadcast view is for.
-      px = 0; py = 15.0; pz = s * (COURT.HALF_L + 13.0);
-      lx = 0; ly = 0.4; lz = 0;
-    } else if (mode === 'fixed') {
-      px = 0; py = 7.5; pz = s * (COURT.HALF_L + 7.9);
-      lx = 0; ly = 0.5; lz = s * 3.2;
-    } else {
-      // Follow: drifts with the player so the near court never leaves frame.
-      px = focusX * 0.34; py = 7.5; pz = s * (COURT.HALF_L + 7.9) + focusZ * 0.06;
-      lx = focusX * 0.16; ly = 0.5; lz = s * 3.2;
-    }
+    const px = focusX * 0.34;
+    const py = 7.5;
+    const pz = s * (COURT.HALF_L + 7.9) + focusZ * 0.06;
+    const lx = focusX * 0.16;
+    const ly = 0.5;
+    const lz = s * 3.2;
 
     const k = 1 - Math.exp(-7.5 * dt);
     this.camPos.x += (px - this.camPos.x) * k;
@@ -350,6 +345,21 @@ export class View {
   // Snap the camera to its target immediately (used when a match starts).
   snapCamera(focusX, focusZ) {
     for (let i = 0; i < 40; i++) this.updateCamera(focusX, focusZ, 1 / 30, null);
+  }
+
+  /**
+   * Where the mouse ray crosses the net's plane (z = 0), or null if it does
+   * not cross it in front of the camera. Used to decide whether the cursor
+   * is over the net, which the court surface raycast cannot tell you.
+   */
+  netPoint(ndcX, ndcY, out = new THREE.Vector3()) {
+    this._ray.setFromCamera({ x: ndcX, y: ndcY }, this.camera);
+    const o = this._ray.ray.origin;
+    const d = this._ray.ray.direction;
+    if (Math.abs(d.z) < 1e-5) return null;
+    const t = -o.z / d.z;
+    if (t <= 0) return null;
+    return out.set(o.x + d.x * t, o.y + d.y * t, 0);
   }
 
   // Where the mouse points on the court surface.
