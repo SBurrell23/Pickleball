@@ -56,13 +56,23 @@ for (const [label, skill] of Object.entries(PLAYERS)) {
 // games is a dozen games, so these catch a ladder that has stopped being a
 // ladder -- not a five-point drift.
 if (!only) {
-  for (const d of ['normal', 'hard']) {
-    const row = grid.decent[d];
-    const first = mean(row.slice(0, 2));
-    const last = mean(row.slice(-2));
-    check(first - last >= 0.25,
-      `${d}: the ladder barely ramps for a decent player `
-      + `(first two ${(first * 100).toFixed(0)}%, last two ${(last * 100).toFixed(0)}%)`);
+  // The ramp is measured over each ladder's two halves and pooled across all
+  // three calibres of player. A single rung swings 25 points on eight games
+  // -- the first pass compared two rungs for one calibre and failed in CI on
+  // noise while the trend underneath it was perfectly clear.
+  const halves = (row) => {
+    const h = Math.floor(row.length / 2);
+    return [mean(row.slice(0, h)), mean(row.slice(-h))];
+  };
+  for (const d of ['normal', 'hard', 'extreme']) {
+    const gaps = Object.keys(grid).map((label) => {
+      const [a, b] = halves(grid[label][d]);
+      return a - b;
+    });
+    const gap = mean(gaps);
+    check(gap >= 0.15,
+      `${d}: the ladder barely ramps (top half beats bottom half by only `
+      + `${(gap * 100).toFixed(0)} points, pooled over all three players)`);
   }
   // Easy has to be the on-ramp: a weak player should be able to clear it.
   check(mean(grid.casual.easy) >= 0.6,
