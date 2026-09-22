@@ -143,6 +143,28 @@ export function ladderFor(difficulty) {
 
 export { seasonLength };
 
+// Which court each rung of each ladder is played on. Written out per
+// difficulty rather than derived, because the shape of it is a design
+// decision and not a formula: every season opens on the rec courts you
+// learned on and finishes on the championship court, and the ladders in
+// between tour more of the map list the longer they are.
+const VENUE_LADDERS = {
+  easy: ['rec', 'rec', 'championship'],
+  normal: ['rec', 'rec', 'forest', 'desert', 'championship'],
+  hard: ['rec', 'rec', 'forest', 'desert', 'marsh', 'forest', 'championship'],
+  extreme: ['rec', 'rec', 'forest', 'desert', 'marsh', 'forest', 'desert',
+    'marsh', 'forest', 'desert', 'championship'],
+};
+
+export function venueForRung(difficulty, rung) {
+  const list = VENUE_LADDERS[difficulty] || VENUE_LADDERS.normal;
+  return list[Math.max(0, Math.min(list.length - 1, rung))];
+}
+
+export function venueLadder(difficulty) {
+  return (VENUE_LADDERS[difficulty] || VENUE_LADDERS.normal).slice();
+}
+
 // Fold a finished match into the run. Returns what happened, which is what
 // the UI narrates -- nothing else needs to reconstruct it.
 export function recordResult(won) {

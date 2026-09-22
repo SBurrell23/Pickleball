@@ -472,6 +472,32 @@ canvas.big-portrait { width: 100%; height: 190px; display: block; }
   .toast, .toast.out { animation: none; }
 }
 
+
+/* ======================= Venue picker ======================= */
+
+.venues { display: flex; flex-wrap: wrap; gap: 7px; }
+.venue-card {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 10px 5px 5px;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.venue-card.on { background: var(--court); color: var(--line); }
+.venue-card.on:hover { background: var(--court-dark); }
+.venue-card:disabled { opacity: 0.55; cursor: default; }
+/* Three bands: the court, its kitchen and the ground around it. That is
+   enough to tell five venues apart without rendering five thumbnails. */
+.venue-swatch {
+  flex: none;
+  width: 34px; height: 24px;
+  border: 2px solid var(--ink);
+  border-radius: 5px;
+  background: linear-gradient(var(--c) 0 34%, var(--a) 34% 66%, var(--b) 66% 100%);
+}
+
 /* ============================ Menus ============================ */
 
 .menu-layer {

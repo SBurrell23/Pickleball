@@ -253,6 +253,62 @@ const ids = (list) => list.map((a) => a.id).sort();
     `${ach.ACHIEVEMENTS.length} achievements is more than the brief asked for`);
 }
 
+// ---- venues ----------------------------------------------------------------
+
+{
+  // Every colour in the venue table is a string handed straight to a canvas
+  // or a THREE.Color. A typo in one is invisible in node and silently paints
+  // something black in the browser -- two of them shipped in the first draft
+  // of this table, which is why this check exists.
+  const { VENUES, TIMES, getVenue, getTime } = await import('../src/render/venues.js');
+  const hex = /^#[0-9a-f]{6}$/i;
+  const int = (v) => Number.isInteger(v) && v >= 0 && v <= 0xffffff;
+  eq(VENUES.length, 5, 'there are five venues');
+  eq(TIMES.length, 3, 'each has a day, dusk and night');
+  const ids = new Set();
+  for (const v of VENUES) {
+    check(!ids.has(v.id), `duplicate venue id ${v.id}`);
+    ids.add(v.id);
+    check(!!v.name && !!v.blurb, `${v.id} is missing a name or blurb`);
+    for (const part of ['court', 'kitchen', 'line', 'apron']) {
+      for (const [k, c] of Object.entries(v[part])) {
+        check(hex.test(c), `${v.id}.${part}.${k} is not a #rrggbb colour: ${c}`);
+      }
+    }
+    check(hex.test(v.ground.base), `${v.id} ground base is not a colour`);
+    for (const c of [...v.ground.blades, ...v.ground.patches]) {
+      check(hex.test(c), `${v.id} ground palette has a bad colour: ${c}`);
+    }
+    check(v.scatter.colors.every(int), `${v.id} scatter colours must be integers`);
+    check(int(v.fence.post) && int(v.stands.color) && int(v.lights.lamp),
+      `${v.id} has a non-integer structure colour`);
+    check(int(v.sky.zenith) && int(v.sky.horizon), `${v.id} sky is not integer colours`);
+    check(!v.fog || (v.fog[0] > 0 && v.fog[1] > v.fog[0]), `${v.id} fog range is backwards`);
+    check(v.stands.crowd >= 0 && v.stands.crowd <= 1, `${v.id} crowd fill is out of range`);
+  }
+  for (const t of TIMES) {
+    check(int(t.key.color) && int(t.hemi.sky) && int(t.hemi.ground) && int(t.fill.color),
+      `${t.id} has a non-integer light colour`);
+    check(t.elevation > -1 && t.elevation < 1.6, `${t.id} sun elevation is implausible`);
+    if (t.flood) check(t.flood.intensity > 0, `${t.id} flood is on but has no intensity`);
+  }
+  // Unknown ids fall back rather than exploding, because they arrive from a
+  // peer and from saved settings.
+  eq(getVenue('nonsense').id, 'rec', 'an unknown venue falls back to the rec courts');
+  eq(getTime('nonsense').id, 'day', 'an unknown time falls back to day');
+
+  // Every rung of every season ladder names a venue that exists, opens on the
+  // rec courts and finishes on the championship court.
+  for (const d of season.DIFFICULTIES) {
+    const ladder = season.venueLadder(d);
+    eq(ladder.length, seasonLength(d), `${d}: a court for every rung`);
+    eq(ladder[0], 'rec', `${d}: the season opens on the rec courts`);
+    eq(ladder[ladder.length - 1], 'championship',
+      `${d}: the season finishes on the championship court`);
+    for (const id of ladder) check(ids.has(id), `${d}: unknown venue ${id} on the ladder`);
+  }
+}
+
 console.log(`${checks} checks, ${failures.length} failed`);
 if (failures.length) {
   for (const f of failures) console.error('FAIL: ' + f);

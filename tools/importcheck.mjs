@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises';
 // Verifies every module parses and its import graph resolves, using light
 // stubs for the browser globals that three.js and the UI touch on import.
 globalThis.self = globalThis;
@@ -36,4 +37,22 @@ for (const m of mods) {
   catch (e) { bad++; console.log('  FAIL ' + m + '\n       ' + (e.message || e).split('\n')[0]); }
 }
 console.log(bad ? `\n${bad} module(s) failed` : '\nall modules resolve');
+
+// Every screen the menus navigate to has to exist. A missing one renders as a
+// blank overlay, which reads to a player as "the button does nothing" -- which
+// is how the join screen sat broken for a commit after a refactor moved the
+// code around it.
+const src = await readFile(new URL('../src/ui/menus.js', import.meta.url), 'utf8');
+const defined = new Set([...src.matchAll(/^ {2}screen_(\w+)\(/gm)].map((m) => m[1]));
+const targets = new Set();
+for (const m of src.matchAll(/this\.show\('(\w+)'/g)) targets.add(m[1]);
+for (const m of src.matchAll(/data-act="(?:nav|back)" data-val="(\w+)"/g)) targets.add(m[1]);
+const missing = [...targets].filter((t) => !defined.has(t)).sort();
+if (missing.length) {
+  console.log(`\nmissing screen(s): ${missing.join(', ')}`);
+  bad++;
+} else {
+  console.log(`all ${targets.size} navigation targets have a screen`);
+}
+
 process.exit(bad ? 1 : 0);

@@ -1,5 +1,6 @@
 import * as THREE from '../../vendor/three.module.js';
 import { COURT } from '../game/constants.js';
+import { getVenue, getTime } from './venues.js';
 import { HORIZON } from './assets.js';
 
 // Fixed: the camera framing and the mouse-to-court aim mapping are tuned
@@ -8,15 +9,10 @@ import { HORIZON } from './assets.js';
 // so far over that depth stops reading.
 const FOV = 38;
 
-// The sun tracks a full circle around the court every ten minutes, rising and
-// falling as it goes. It deliberately never drops below the horizon: a real
-// full rotation would spend half the cycle in darkness, and a match should not
-// become unplayable because of what time it is.
+// The sun circles the court every ten minutes so shadows swing round over a
+// long match. How HIGH it sits is the time of day's business, not this
+// module's -- see venues.js -- so only the azimuth is animated here.
 const SUN_PERIOD = 600;          // seconds for one full pass
-const SUN_EL_MID = 0.90;         // ~52 degrees
-const SUN_EL_AMP = 0.49;         // swings between ~24 and ~80 degrees
-const SUN_HIGH = new THREE.Color(0xfff6e2);
-const SUN_LOW = new THREE.Color(0xffd08a);
 
 // Renderer + scene + camera. Antialiasing mode is a context-creation choice,
 // so switching it rebuilds the WebGL context; everything else applies live.
@@ -128,12 +124,30 @@ export class View {
     const fill = new THREE.DirectionalLight(0xbcd9f0, 0.32);
     fill.position.set(-8, 9, 10);
     this.scene.add(fill);
+    this.fill = fill;
+
+    // Straight down over the court, off during the day. At night this is what
+    // you actually see by, and it has to be a SPOT rather than another
+    // directional: a directional light reaches the horizon, which lit the
+    // grass and the sky-line as brightly as the court and made midnight look
+    // like an overcast afternoon. A cone stops at the fence.
+    const flood = new THREE.SpotLight(0xeaf2ff, 0, 0, 0.62, 0.55, 0.9);
+    flood.position.set(0, 24, 0);
+    flood.target.position.set(0, 0, 0);
+    flood.distance = 46;
+    this.scene.add(flood);
+    this.scene.add(flood.target);
+    this.flood = flood;
 
     // Direction the sky shader should put the sun in, matching the key light.
     this.sunDirection = key.position.clone().normalize();
     this.sunPhase = Math.PI * 0.35;   // start mid-morning
     this.sky = null;
     this._sunDir = new THREE.Vector3();
+    this.venue = getVenue();
+    this.time = getTime();
+    this._skyTop = new THREE.Color();
+    this._skyBottom = new THREE.Color();
   }
 
   createRenderer() {
@@ -242,12 +256,68 @@ export class View {
     this.updateSun(0);
   }
 
-  // Walk the sun around its arc and keep the key light, its warmth and the
-  // sky's sun disc all pointing the same way.
+  /**
+   * Point the scene at a venue and a time of day. The venue owns the colours
+   * of the place; the time owns the light falling on it. Called whenever
+   * either changes, which is once per match.
+   */
+  setScene(venueId, timeId) {
+    this.venue = getVenue(venueId);
+    this.time = getTime(timeId);
+    const t = this.time;
+
+    this.key.color.setHex(t.key.color);
+    this.key.intensity = t.key.intensity;
+    this.hemi.color.setHex(t.hemi.sky);
+    this.hemi.groundColor.setHex(t.hemi.ground);
+    this.hemi.intensity = t.hemi.intensity;
+    this.fill.color.setHex(t.fill.color);
+    this.fill.intensity = t.fill.intensity;
+    this.flood.color.setHex(t.flood ? t.flood.color : 0xffffff);
+    this.flood.intensity = t.flood ? t.flood.intensity : 0;
+
+    // The sky is the venue's own, pulled toward the time's palette rather
+    // than replaced by it -- that is what keeps a desert dusk looking like a
+    // desert and not like every other dusk.
+    const base = this.venue.sky;
+    this._skyTop.setHex(base.zenith);
+    this._skyBottom.setHex(base.horizon);
+    if (t.duskSky) {
+      this._skyTop.lerp(new THREE.Color(t.duskSky.zenith), t.skyMix);
+      this._skyBottom.lerp(new THREE.Color(t.duskSky.horizon), t.skyMix);
+    }
+    if (this.sky && this.sky.userData.skyTop) {
+      this.sky.userData.skyTop.value.copy(this._skyTop);
+      this.sky.userData.skyBottom.value.copy(this._skyBottom);
+    }
+    // Fog and the clear colour follow the horizon, so the ground still
+    // dissolves into the sky instead of ending at a visible edge.
+    const [near, far] = this.venue.fog || [150, 620];
+    this.scene.fog.color.copy(this._skyBottom);
+    this.scene.fog.near = near;
+    this.scene.fog.far = far;
+    this.scene.background.copy(this._skyBottom);
+
+    this.setLamps(!!t.lamps);
+    this.updateSun(0);
+  }
+
+  // Floodlamp heads glow when they are meant to be on. The bulb material is
+  // shared across all four heads, so this is one assignment.
+  setLamps(on) {
+    const court = this.scene.getObjectByName('floodlights');
+    const m = court && court.userData.lampMat;
+    if (m) m.emissiveIntensity = on ? 1.9 : 0.05;
+  }
+
+  // Walk the sun around its arc and keep the key light and the sky's sun disc
+  // pointing the same way. The elevation is pinned by the time of day -- only
+  // the azimuth drifts -- so shadows still swing round over a long match
+  // without the light changing character halfway through a point.
   updateSun(dt) {
     this.sunPhase = (this.sunPhase + (dt / SUN_PERIOD) * Math.PI * 2) % (Math.PI * 2);
     const az = this.sunPhase;
-    const el = SUN_EL_MID + SUN_EL_AMP * Math.sin(az);
+    const el = this.time.elevation;
     const ce = Math.cos(el);
     this._sunDir.set(ce * Math.sin(az), Math.sin(el), ce * Math.cos(az));
 
@@ -256,15 +326,6 @@ export class View {
     if (this.sky && this.sky.userData.sunUniform) {
       this.sky.userData.sunUniform.value.copy(this._sunDir);
     }
-
-    // Warmer when the sun is low, as it would be. A low sun also strikes the
-    // court at a grazing angle and loses most of its effect, so the lamp is
-    // turned up and the ambient lifted to compensate -- the scene should read
-    // as evening light, not as a court you cannot see.
-    const high = Math.max(0, Math.min(1, (Math.sin(el) - 0.4) / 0.55));
-    this.key.color.copy(SUN_LOW).lerp(SUN_HIGH, high);
-    this.key.intensity = 2.85 - high * 0.85;
-    this.hemi.intensity = 1.05 + (1 - high) * 0.55;
   }
 
   // ---- camera ------------------------------------------------------------

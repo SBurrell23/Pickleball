@@ -127,6 +127,41 @@ browser — that an 11-0 flawless win earns six specific achievements, that a
 heavy defeat earns none, and that a milestone fires on the match that crosses
 it rather than the one after.
 
+## Courts
+
+Five places to play, each with a day, dusk and night mode:
+
+| Court | |
+| --- | --- |
+| Rec Play Courts | Municipal blue behind chain-link. Where everybody starts. |
+| Hollow Pines | A clearing somebody paved, dark and close. |
+| Dust Bowl | Terracotta hard court under a bleached sky. |
+| Tidewater | Teal over the reeds, low cloud, full of birds. |
+| Centre Court | Deep blue, advertising boards, every seat sold. |
+
+A venue is pure data in `render/venues.js` — the court paint, the ground, what
+grows outside the fence, the stands, the barrier, the sky — and there is one
+set of builders in `render/assets.js` that reads it. Fifteen hand-built scenes
+would drift apart; a new court should be a table entry.
+
+None of it touches the simulation. A court is the same size with the same
+bounce and the same net everywhere, and the barrier a venue draws as
+advertising boards still sits exactly where the chain-link does, because
+`FENCE` is a simulation constant. Only the paint changes.
+
+Time of day pins the sun's elevation and lets only its azimuth drift, so
+shadows still swing round over a long match without the light changing
+character mid-point. At night the sun is below the horizon and a spotlight
+cone over the court does the work — a directional light reaches the horizon,
+which lit the grass as brightly as the court and made midnight look like an
+overcast afternoon.
+
+Online, the host picks the court and it travels with the match. In a season
+the ladder picks: every run opens on the rec courts you learned on and
+finishes on the championship court, touring more of the list the longer the
+ladder is, with the time of day drawn at random so two runs up the same
+ladder do not look the same.
+
 ## Rules
 
 Real pickleball rules, because they are what make the two meters matter:
@@ -272,7 +307,8 @@ src/
     characters.js     resolves a roster entry into a definition
     game.js           ties simulation, rendering, netcode and input together
   net/                PeerJS transport, snapshot interpolation, reconciliation
-  render/             procedural court, character rigs, effects, renderer
+  render/             procedural courts, character rigs, effects, renderer
+    venues.js         the five courts and the three times of day
   ui/                 HUD canvas, menu screens, portraits, aiming reticle
 assets/audio/         background music (the repo's only asset file)
 tools/                dev server and headless test harnesses

@@ -17,6 +17,9 @@ import {
 } from './game/season.js';
 import { recordMatch, grant } from './game/achievements.js';
 import { buildCourt, buildSky } from './render/assets.js';
+import { DEFAULT_VENUE, DEFAULT_TIME, randomTimeId, getVenue }
+  from './render/venues.js';
+import { venueForRung } from './game/season.js';
 
 // What clearing a season on each difficulty hands over. Written out rather
 // than derived so the season-complete screen can name the prizes.
@@ -35,6 +38,20 @@ const REWARDS = {
 };
 
 function rewardsFor(difficulty) { return REWARDS[difficulty] || []; }
+
+// Rebuilding the venue throws away a whole scene's worth of geometry and
+// canvas textures. Without this, switching courts a few times in a session
+// leaks every one of them -- the same mistake the effects system made.
+function disposeTree(root) {
+  root.traverse((o) => {
+    if (o.geometry) o.geometry.dispose();
+    const mats = Array.isArray(o.material) ? o.material : (o.material ? [o.material] : []);
+    for (const m of mats) {
+      for (const k of ['map', 'alphaMap', 'normalMap', 'roughnessMap']) m[k]?.dispose?.();
+      m.dispose();
+    }
+  });
+}
 
 class App {
   constructor() {
@@ -60,6 +77,7 @@ class App {
       onBackToLobby: () => this.backToLobby(true),
       onChangeCharacter: (p) => this.changeCharacter(p),
       onLobbyMode: (m) => this.setLobbyMode(m),
+      onVenue: (v, t) => this.onVenuePicked(v, t),
       onSeasonStart: (d) => this.startSeason(d),
       onSeasonPlay: () => this.playSeasonMatch(),
       onSeasonQuit: () => this.quitSeason(),
@@ -98,11 +116,9 @@ class App {
 
     // The court doubles as the menu backdrop, so it lives for the whole
     // session rather than being rebuilt per match.
-    this.court = buildCourt(settings.get('shadows'));
-    this.view.scene.add(this.court);
-    this.sky = buildSky(this.view.sunDirection);
-    this.view.scene.add(this.sky);
-    this.view.setSky(this.sky);
+    this.venueId = settings.get('venue');
+    this.timeId = settings.get('timeOfDay');
+    this.buildScene();
 
     this.game = null;
     this.net = null;
@@ -139,6 +155,48 @@ class App {
     requestAnimationFrame(this.loop);
   }
 
+  // The court and the sky are the venue, so changing venue means rebuilding
+  // both. They live for the whole session rather than per match -- the menu
+  // uses them as its backdrop -- so this is also what disposes the old one.
+  buildScene() {
+    if (this.court) { this.view.scene.remove(this.court); disposeTree(this.court); }
+    if (this.sky) { this.view.scene.remove(this.sky); disposeTree(this.sky); }
+    this.court = buildCourt(settings.get('shadows'), this.venueId);
+    this.view.scene.add(this.court);
+    this.sky = buildSky(this.view.sunDirection, this.venueId);
+    this.view.scene.add(this.sky);
+    this.view.setSky(this.sky);
+    this.view.setScene(this.venueId, this.timeId);
+    if (this.game) this.game.setCourt(this.court);
+  }
+
+  /**
+   * Point the session at a venue and a time. A no-op when nothing changed,
+   * because rebuilding the court costs a few hundred milliseconds of texture
+   * work and the lobby calls this on every roster update.
+   */
+  // From the picker: change the backdrop immediately so the choice is a
+  // preview rather than a promise, and tell the room about it if we host one.
+  onVenuePicked(venueId, timeId) {
+    this.setVenue(venueId, timeId);
+    if (this.net && this.net.isHost && this.hostConfig) {
+      this.hostConfig.venue = venueId;
+      this.hostConfig.time = timeId;
+      this.refreshLobby();
+    }
+  }
+
+  setVenue(venueId, timeId) {
+    const v = getVenue(venueId).id;
+    const t = timeId || this.timeId;
+    if (v === this.venueId && t === this.timeId) return;
+    const rebuild = v !== this.venueId;
+    this.venueId = v;
+    this.timeId = t;
+    if (rebuild) this.buildScene();
+    else this.view.setScene(this.venueId, this.timeId);
+  }
+
   onSettingChanged(key) {
     const rebuilt = this.view.onSettingChanged(key);
     if (rebuilt) {
@@ -151,6 +209,7 @@ class App {
       if (this.game) this.game.input = this.input;
     }
     this.audio.applySettings();
+    if (key === 'shadows') this.buildScene();
     if (this.game) this.game.onSettingChanged(key);
   }
 
@@ -303,6 +362,10 @@ class App {
       difficulty: run.difficulty, index: run.index,
       rivalId: rival.def.id, livesBefore: run.lives,
     };
+    // The venue is the ladder's, not the player's: rec courts early, the
+    // championship court for the final, and the time of day drawn at random
+    // so two runs up the same ladder do not look identical.
+    this.setVenue(venueForRung(run.difficulty, run.index), randomTimeId());
     const me = this.menus.profile();
     const roster = [
       { id: 'me', name: me.name, look: me.look, team: 0, bot: false },
@@ -490,6 +553,8 @@ class App {
   startLocal(profile, config) {
     this.teardownNet();
     const roster = this.buildRoster(config, [{ id: 'me', ...profile }]);
+    this.setVenue(config.venue || settings.get('venue'),
+      config.time || settings.get('timeOfDay'));
     this.beginMatch('local', { ...config, seed: (Math.random() * 1e9) | 0 }, roster, 0);
   }
 
@@ -615,19 +680,26 @@ class App {
         ping: r.ping.ms,
       })),
     ];
+    const venue = this.hostConfig.venue || settings.get('venue');
+    const time = this.hostConfig.time || settings.get('timeOfDay');
     this.lobby = {
-      ...this.lobby, players, isHost: true, mode: this.hostConfig.mode, code: this.net.code,
+      ...this.lobby, players, isHost: true, mode: this.hostConfig.mode,
+      code: this.net.code, venue, time,
     };
     this.net.sendCtrl({
-      t: 'lobby', players, mode: this.hostConfig.mode, code: this.net.code,
+      t: 'lobby', players, mode: this.hostConfig.mode, code: this.net.code, venue, time,
     });
     if (this.menus.screen === 'lobby') this.menus.show('lobby', this.lobby);
   }
 
   onLobbyMessage(msg) {
     this.lobby = {
-      ...this.lobby, players: msg.players, mode: msg.mode, code: msg.code, isHost: false,
+      ...this.lobby, players: msg.players, mode: msg.mode, code: msg.code,
+      venue: msg.venue, time: msg.time, isHost: false,
     };
+    // Show the host's court behind the lobby, so a joiner knows where they
+    // are going before the match starts.
+    this.setVenue(msg.venue, msg.time);
     if (this.menus.screen === 'lobby') this.menus.show('lobby', this.lobby);
   }
 
@@ -641,7 +713,12 @@ class App {
   hostStartMatch() {
     if (!this.net || !this.net.isHost) return;
     this.matchStarted = true;
-    const config = { ...this.hostConfig, seed: (Math.random() * 1e9) | 0 };
+    const config = {
+      ...this.hostConfig, seed: (Math.random() * 1e9) | 0,
+      venue: this.hostConfig.venue || settings.get('venue'),
+      time: this.hostConfig.time || settings.get('timeOfDay'),
+    };
+    this.setVenue(config.venue, config.time);
     const peers = this.net.peerList().filter((r) => r.profile);
     const humans = [
       { id: 'host', name: this.hostProfile.name, look: this.hostProfile.look },
@@ -668,6 +745,8 @@ class App {
   }
 
   onStartMessage(msg) {
+    // Everyone plays the same court: the host's pick arrives with the match.
+    this.setVenue(msg.config.venue, msg.config.time);
     this.beginMatch('client', msg.config, msg.roster, msg.yourIdx);
   }
 

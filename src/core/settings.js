@@ -31,6 +31,8 @@ export const DEFAULTS = {
   showLanding: true,
   cameraMode: 'follow',  // follow | fixed | broadcast
   colorblind: 'off',     // off | deuter | protan | tritan
+  venue: 'rec',          // which court to play on outside the season
+  timeOfDay: 'day',      // day | dusk | night
   screenShakeOnHit: true,
 
   // Net
@@ -57,6 +59,8 @@ const ENUMS = {
   difficulty: ['easy', 'normal', 'hard', 'extreme'],
   cameraMode: ['follow', 'fixed', 'broadcast'],
   colorblind: ['off', 'deuter', 'protan', 'tritan'],
+  venue: ['rec', 'forest', 'desert', 'marsh', 'championship'],
+  timeOfDay: ['day', 'dusk', 'night'],
   cursorStyle: ['reticle', 'ring', 'cross', 'dot', 'chevron', 'target'],
   cursorColor: ['white', 'ball', 'teal', 'orange', 'magenta', 'ink'],
 };

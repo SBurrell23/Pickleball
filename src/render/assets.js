@@ -2,6 +2,7 @@ import * as THREE from '../../vendor/three.module.js';
 import { COURT, BALL, FENCE } from '../game/constants.js';
 import { netHeightAt } from '../game/ballistics.js';
 import { mulberry32 } from '../game/rng.js';
+import { getVenue } from './venues.js';
 
 // Everything visible in the game is built here out of primitives and
 // canvas-drawn textures. No external art assets.
@@ -10,6 +11,14 @@ import { mulberry32 } from '../game/rng.js';
 // constants the ball collides against.
 const APRON_X = FENCE.X;
 const APRON_Z = FENCE.Z;
+
+// A slightly lighter version of a colour, for the parts of a structure that
+// catch the light -- rails against posts, that sort of thing.
+function tintUp(hex, t) {
+  const r = (hex >> 16) & 255, g = (hex >> 8) & 255, b = hex & 255;
+  const up = (c) => Math.round(c + (255 - c) * t);
+  return (up(r) << 16) | (up(g) << 8) | up(b);
+}
 
 function mat(color, opts = {}) {
   return new THREE.MeshStandardMaterial({
@@ -97,9 +106,9 @@ function courtGrain(base, light, dark, repeat, density = 2600) {
 // The apron is a laid sport surface: coarse aggregate grain and patchy wear.
 // Every feature big enough to see is wrapped, because at this tile size an
 // unwrapped blob reads as a grid of squares across the whole surround.
-function apronTexture() {
+function apronTexture(pal) {
   return canvasTex(512, 512, (g, w, h) => {
-    g.fillStyle = '#3d4f41';
+    g.fillStyle = pal.base;
     g.fillRect(0, 0, w, h);
 
     const patches = [];
@@ -107,7 +116,7 @@ function apronTexture() {
       patches.push({
         x: Math.random() * w, y: Math.random() * h,
         r: 40 + Math.random() * 100,
-        c: Math.random() < 0.5 ? '#4a6040' : '#2e3c31',
+        c: Math.random() < 0.5 ? pal.light : pal.dark,
         a: 0.025 + Math.random() * 0.04,
       });
     }
@@ -204,24 +213,26 @@ function ballTexture() {
 
 // ---- court -----------------------------------------------------------------
 
-export function buildCourt(quality = 'high') {
+export function buildCourt(quality = 'high', venueId) {
+  const v = getVenue(venueId);
   const root = new THREE.Group();
   root.name = 'court';
+  root.userData.venue = v.id;
 
   const apron = new THREE.Mesh(
     new THREE.BoxGeometry(APRON_X * 2, 0.18, APRON_Z * 2),
     mat(0xffffff, { roughness: 0.97 })
   );
-  apron.material.map = apronTexture();
+  apron.material.map = apronTexture(v.apron);
   apron.position.y = -0.09;
   apron.receiveShadow = quality !== 'off';
   root.add(apron);
 
   const surface = new THREE.Mesh(
     new THREE.BoxGeometry(COURT.HALF_W * 2 + 0.02, 0.02, COURT.HALF_L * 2 + 0.02),
-    mat(0x2f7fc4, { roughness: 0.9 })
+    mat(0xffffff, { roughness: 0.9 })
   );
-  surface.material.map = courtGrain('#2f7fc4', '#5ba3dd', '#1d568e', [4, 9]);
+  surface.material.map = courtGrain(v.court.surface, v.court.light, v.court.dark, [4, 9]);
   surface.position.y = 0.006;
   surface.receiveShadow = quality !== 'off';
   root.add(surface);
@@ -229,7 +240,7 @@ export function buildCourt(quality = 'high') {
   // The kitchen gets its own shade so the shot-type boundary is readable
   // from the play camera at a glance.
   const kitchenMat = mat(0xffffff, { roughness: 0.9 });
-  kitchenMat.map = courtGrain('#1d9c74', '#43c095', '#11634a', [4, 1.4]);
+  kitchenMat.map = courtGrain(v.kitchen.surface, v.kitchen.light, v.kitchen.dark, [4, 1.4]);
   for (const s of [-1, 1]) {
     const k = new THREE.Mesh(
       new THREE.BoxGeometry(COURT.HALF_W * 2, 0.02, COURT.KITCHEN),
@@ -243,7 +254,7 @@ export function buildCourt(quality = 'high') {
   // Lines
   // The lines are painted on the same surface, so they carry the same grit.
   const lineMat = mat(0xffffff, { roughness: 0.7, emissive: 0x223344, emissiveIntensity: 0.10 });
-  lineMat.map = courtGrain('#f4f7fb', '#ffffff', '#ccd6e0', [1, 26], 700);
+  lineMat.map = courtGrain(v.line.surface, v.line.light, v.line.dark, [1, 26], 700);
   const line = (x, z, w, l) => {
     const m = new THREE.Mesh(new THREE.BoxGeometry(w, 0.012, l), lineMat);
     m.position.set(x, 0.021, z);
@@ -262,7 +273,7 @@ export function buildCourt(quality = 'high') {
   line(0, -(COURT.KITCHEN + halfSeg), W, halfSeg * 2);
 
   root.add(buildNet(quality));
-  root.add(buildSurrounds(quality));
+  root.add(buildSurrounds(quality, v));
   return root;
 }
 
@@ -333,15 +344,15 @@ function buildNet(quality) {
   return g;
 }
 
-function buildSurrounds(quality) {
+function buildSurrounds(quality, v) {
   const g = new THREE.Group();
-  g.add(buildFence(quality));
+  g.add(buildBarrier(quality, v));
 
   // Bleachers down both sides and behind both baselines. The end banks are the
   // ones that matter: the play camera looks straight down the court, so the
   // side stands are out of frame for the whole match and a crowd only seated
   // there may as well not exist.
-  const standMat = mat(0x404a55, { roughness: 0.9 });
+  const standMat = mat(v.stands.color, { roughness: 0.9 });
   for (const s of [-1, 1]) {
     for (let r = 0; r < SIDE_ROWS; r++) {
       const bench = new THREE.Mesh(
@@ -362,16 +373,16 @@ function buildSurrounds(quality) {
     }
   }
 
-  if (quality !== 'off') g.add(buildCrowd());
-  g.add(buildLights(quality));
+  if (quality !== 'off' && v.stands.crowd > 0) g.add(buildCrowd(v.stands.crowd));
+  if (v.lights.show) g.add(buildLights(quality, v));
   return g;
 }
 
 // Chain-link mesh, drawn once and tiled along the rails.
-function chainLinkTexture() {
+function chainLinkTexture(stroke) {
   return canvasTex(64, 64, (g, w, h) => {
     g.clearRect(0, 0, w, h);
-    g.strokeStyle = 'rgba(206, 218, 224, 0.95)';
+    g.strokeStyle = stroke;
     g.lineWidth = 3;
     g.lineCap = 'square';
     for (let i = -1; i <= 2; i++) {
@@ -385,13 +396,46 @@ function chainLinkTexture() {
 
 // A waist-high perimeter fence rather than a full cage: it reads as a real
 // court surround, and it is low enough that the ball can clear it.
-function buildFence(quality) {
+// The perimeter. Chain-link at the public courts, solid boards at the arena
+// -- the ball bounces off it either way (FENCE is a simulation constant), so
+// a venue can change what it looks like but never whether it is there.
+function buildBarrier(quality, v) {
+  return v.fence.style === 'wall' ? buildWall(v) : buildFence(quality, v);
+}
+
+// Advertising boards: a solid run at fence height with a lighter capping
+// rail, which is what a televised court has instead of chain-link.
+function buildWall(v) {
   const g = new THREE.Group();
   const H = FENCE.H;
-  const postMat = mat(0x39474e, { metalness: 0.4, roughness: 0.5 });
-  const railMat = mat(0x46565e, { metalness: 0.4, roughness: 0.5 });
+  const face = mat(v.fence.post, { roughness: 0.62, metalness: 0.05 });
+  const cap = mat(tintUp(v.fence.post, 0.5), { roughness: 0.4, metalness: 0.2 });
+  const runs = [
+    { w: FENCE.X * 2 + 0.3, d: 0.16, x: 0, z: -FENCE.Z },
+    { w: FENCE.X * 2 + 0.3, d: 0.16, x: 0, z: FENCE.Z },
+    { w: 0.16, d: FENCE.Z * 2, x: -FENCE.X, z: 0 },
+    { w: 0.16, d: FENCE.Z * 2, x: FENCE.X, z: 0 },
+  ];
+  for (const r of runs) {
+    const board = new THREE.Mesh(new THREE.BoxGeometry(r.w, H, r.d), face);
+    board.position.set(r.x, H / 2, r.z);
+    board.receiveShadow = true;
+    g.add(board);
+    const rail = new THREE.Mesh(
+      new THREE.BoxGeometry(r.w + 0.05, 0.07, r.d + 0.05), cap);
+    rail.position.set(r.x, H + 0.03, r.z);
+    g.add(rail);
+  }
+  return g;
+}
 
-  const meshTex = chainLinkTexture();
+function buildFence(quality, v) {
+  const g = new THREE.Group();
+  const H = FENCE.H;
+  const postMat = mat(v.fence.post, { metalness: 0.4, roughness: 0.5 });
+  const railMat = mat(tintUp(v.fence.post, 0.14), { metalness: 0.4, roughness: 0.5 });
+
+  const meshTex = chainLinkTexture(v.fence.mesh);
   const meshMat = new THREE.MeshStandardMaterial({
     color: 0xd8e2e8, map: meshTex, transparent: true, alphaTest: 0.35,
     side: THREE.DoubleSide, roughness: 0.85, metalness: 0.15,
@@ -517,14 +561,25 @@ function seatingPlan() {
   return out;
 }
 
+// A stable, evenly spread 0..1 per seat, so a half-full stand is scattered
+// rather than one solid block with an empty half beside it.
+function hashFill(i) {
+  const x = Math.sin(i * 12.9898) * 43758.5453;
+  return x - Math.floor(x);
+}
+
 function seatCount() {
   return (SIDE_ROWS * SIDE_PER + END_ROWS * END_PER) * 2;
 }
 
-function buildCrowd() {
+// `fill` is how much of the seating is actually occupied. A clearing in the
+// woods should not draw the same full house as a championship final, and
+// leaving gaps is cheaper and reads better than shrinking the stands.
+function buildCrowd(fill = 1) {
   const group = new THREE.Group();
   group.name = 'crowd';
-  const count = seatCount();
+  const plan = seatingPlan().filter((_, i) => fill >= 1 || hashFill(i) < fill);
+  const count = plan.length;
   const bodyGeo = new THREE.CapsuleGeometry(0.17, 0.26, 3, 6);
   const headGeo = new THREE.SphereGeometry(0.135, 7, 6);
   // Arms pivot at the shoulder, so the geometry is shifted to hang below its
@@ -544,7 +599,7 @@ function buildCrowd() {
   const sc = new THREE.Vector3(1, 1, 1);
   const seeds = [];
   let i = 0;
-  for (const { x, y, z, along, shoulderZ } of seatingPlan()) {
+  for (const { x, y, z, along, shoulderZ } of plan) {
     seeds.push({
       x, y, z,
       phase: Math.random() * 6.283,
@@ -751,10 +806,16 @@ export function animateCrowd(group, dt, excitement = 0) {
   d.arms.instanceMatrix.needsUpdate = true;
 }
 
-function buildLights(quality) {
+function buildLights(quality, v) {
   const g = new THREE.Group();
-  const poleMat = mat(0x2b333c, { metalness: 0.5, roughness: 0.5 });
-  const lampMat = mat(0xfff6d8, { emissive: 0xfff0c0, emissiveIntensity: 1.4, roughness: 0.3 });
+  g.name = 'floodlights';
+  const poleMat = mat(v.lights.pole, { metalness: 0.5, roughness: 0.5 });
+  // Kept on userData so the time of day can switch the lamps on without
+  // hunting through the scene graph for them.
+  const lampMat = mat(v.lights.lamp, {
+    emissive: v.lights.lamp, emissiveIntensity: 1.4, roughness: 0.3,
+  });
+  g.userData.lampMat = lampMat;
   for (const sx of [-1, 1]) {
     for (const sz of [-1, 1]) {
       const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.13, 8, 8), poleMat);
@@ -842,29 +903,32 @@ void main() {
   gl_FragColor = vec4(col, 1.0);
 }`;
 
-function grassTexture() {
+// The terrain the court sits in. Same routine for every venue -- mottling
+// then blades -- with the palette and the blade count doing the work. Sand
+// gets few, short strokes; marsh gets a great many long ones.
+function groundTexture(ground) {
   return canvasTex(512, 512, (g, w, h) => {
-    g.fillStyle = '#4e9f45';
+    g.fillStyle = ground.base;
     g.fillRect(0, 0, w, h);
-    // Broad mottling: patches of lighter and darker turf.
+    // Broad mottling: patches of lighter and darker ground.
     for (let i = 0; i < 70; i++) {
       const r = 30 + Math.random() * 90;
       g.globalAlpha = 0.05 + Math.random() * 0.08;
-      g.fillStyle = Math.random() < 0.5 ? '#74c45f' : '#2f7a2f';
+      g.fillStyle = ground.patches[(Math.random() * ground.patches.length) | 0];
       g.beginPath();
       g.arc(Math.random() * w, Math.random() * h, r, 0, Math.PI * 2);
       g.fill();
     }
     // Individual blades, drawn as short tapered strokes at varied angles. This
-    // is what stops the field reading as flat paint up close.
+    // is what stops the ground reading as flat paint up close.
     g.lineCap = 'round';
-    for (let i = 0; i < 9000; i++) {
+    const n = ground.bladeCount ?? 9000;
+    for (let i = 0; i < n; i++) {
       const x = Math.random() * w, y = Math.random() * h;
       const len = 3 + Math.random() * 7;
       const lean = (Math.random() - 0.5) * 3.2;
       g.globalAlpha = 0.22 + Math.random() * 0.5;
-      const t = Math.random();
-      g.strokeStyle = t < 0.34 ? '#83d46c' : t < 0.68 ? '#3f8c37' : '#5cb04e';
+      g.strokeStyle = ground.blades[(Math.random() * ground.blades.length) | 0];
       g.lineWidth = 0.8 + Math.random() * 1.2;
       g.beginPath();
       g.moveTo(x, y);
@@ -875,13 +939,33 @@ function grassTexture() {
   }, [260, 260]);
 }
 
-// Low-poly shrubs scattered outside the fence. One InstancedMesh for the whole
-// ring keeps this to a single draw call no matter how many clumps there are.
-function buildBrush(rand, count) {
+// What grows outside the fence. One InstancedMesh for the whole ring keeps
+// this to a single draw call however many there are; the venue picks the
+// shape and the proportions, so a pine forest and a cactus flat are the same
+// code with a different geometry and a taller scale.
+const SCATTER_SHAPES = {
+  // [geometry, base scale, height multiplier, how much heights vary]
+  shrub: () => new THREE.IcosahedronGeometry(1, 0),
+  pine: () => new THREE.ConeGeometry(1, 2.6, 6),
+  cactus: () => new THREE.CapsuleGeometry(0.55, 1.9, 3, 7),
+  reed: () => new THREE.ConeGeometry(0.42, 2.2, 4),
+};
+
+const SCATTER_FORM = {
+  shrub: { size: [0.30, 0.62], tall: [0.60, 0.45], wide: [0.90, 0.60], lean: 0.40, near: 11, spread: 95 },
+  pine: { size: [1.30, 1.70], tall: [1.60, 1.10], wide: [0.70, 0.35], lean: 0.10, near: 7, spread: 105 },
+  cactus: { size: [0.70, 0.80], tall: [1.20, 0.90], wide: [0.55, 0.30], lean: 0.08, near: 13, spread: 120 },
+  reed: { size: [0.55, 0.70], tall: [1.10, 0.90], wide: [0.50, 0.35], lean: 0.26, near: 5, spread: 80 },
+};
+
+function buildScatter(rand, scatter) {
   const group = new THREE.Group();
-  const geo = new THREE.IcosahedronGeometry(1, 0);
+  const kind = scatter.kind;
+  if (kind === 'none' || !scatter.count || !SCATTER_SHAPES[kind]) return group;
+  const form = SCATTER_FORM[kind];
+  const count = scatter.count;
   const mesh = new THREE.InstancedMesh(
-    geo,
+    SCATTER_SHAPES[kind](),
     new THREE.MeshStandardMaterial({ roughness: 1, metalness: 0, flatShading: true }),
     count
   );
@@ -890,24 +974,28 @@ function buildBrush(rand, count) {
   const e = new THREE.Euler();
   const pos = new THREE.Vector3();
   const scl = new THREE.Vector3();
-  const greens = [0x3f8f3a, 0x4fa348, 0x336f30, 0x5cb054, 0x2d6b2f];
+  const palette = scatter.colors;
 
   for (let i = 0; i < count; i++) {
     // Ring around the court, thinning with distance so the near ground stays
     // clear and the horizon stays busy.
     const ang = rand() * Math.PI * 2;
-    // Start well clear of the fence: anything close reads as a boulder from the
-    // play camera and crowds the top of the frame.
-    const dist = FENCE.Z + 11 + Math.pow(rand(), 0.55) * 95;
+    // Start well clear of the fence: anything close reads as a boulder from
+    // the play camera and crowds the top of the frame.
+    const dist = FENCE.Z + form.near + Math.pow(rand(), 0.55) * form.spread;
     pos.set(Math.cos(ang) * dist * 1.05, 0, Math.sin(ang) * dist);
-    const s = 0.30 + rand() * 0.62;
-    scl.set(s * (0.9 + rand() * 0.6), s * (0.6 + rand() * 0.45), s * (0.9 + rand() * 0.6));
+    const sz = form.size[0] + rand() * form.size[1];
+    scl.set(
+      sz * (form.wide[0] + rand() * form.wide[1]),
+      sz * (form.tall[0] + rand() * form.tall[1]),
+      sz * (form.wide[0] + rand() * form.wide[1])
+    );
     pos.y = scl.y * 0.5 - 0.22;
-    e.set(rand() * 0.4, rand() * 6.283, rand() * 0.4);
+    e.set(rand() * form.lean, rand() * 6.283, rand() * form.lean);
     q.setFromEuler(e);
     m.compose(pos, q, scl);
     mesh.setMatrixAt(i, m);
-    mesh.setColorAt(i, new THREE.Color(greens[(rand() * greens.length) | 0]));
+    mesh.setColorAt(i, new THREE.Color(palette[(rand() * palette.length) | 0]));
   }
   mesh.instanceColor.needsUpdate = true;
   mesh.castShadow = false;
@@ -937,16 +1025,18 @@ function buildCloud(rand) {
 
 // Sky dome, sun, clouds and the ground the court sits on. Everything here is
 // far away and unlit by the court lights, so it is cheap.
-export function buildSky(sunDirection) {
+export function buildSky(sunDirection, venueId) {
+  const v = getVenue(venueId);
   const root = new THREE.Group();
   root.name = 'sky';
+  root.userData.venue = v.id;
 
   const dome = new THREE.Mesh(
     new THREE.SphereGeometry(900, 32, 20),
     new THREE.ShaderMaterial({
       uniforms: {
-        top: { value: new THREE.Color(ZENITH) },
-        bottom: { value: new THREE.Color(HORIZON) },
+        top: { value: new THREE.Color(v.sky.zenith) },
+        bottom: { value: new THREE.Color(v.sky.horizon) },
         sunDir: { value: sunDirection.clone().normalize() },
       },
       vertexShader: SKY_VERT,
@@ -961,13 +1051,18 @@ export function buildSky(sunDirection) {
   // The light drives this, so the disc in the sky and the direction shadows
   // fall from can never disagree.
   root.userData.sunUniform = dome.material.uniforms.sunDir;
+  // The time of day tints these, so it needs them by name rather than by
+  // walking the material.
+  root.userData.skyTop = dome.material.uniforms.top;
+  root.userData.skyBottom = dome.material.uniforms.bottom;
+  root.userData.base = v.sky;
 
   // Ground plane large enough that its edge is well past the fog distance,
   // so it is never seen ending.
   const ground = new THREE.Mesh(
     new THREE.PlaneGeometry(1600, 1600),
     new THREE.MeshStandardMaterial({
-      color: 0xffffff, map: grassTexture(), roughness: 1, metalness: 0,
+      color: 0xffffff, map: groundTexture(v.ground), roughness: 1, metalness: 0,
     })
   );
   ground.rotation.x = -Math.PI / 2;
@@ -976,8 +1071,8 @@ export function buildSky(sunDirection) {
   root.add(ground);
 
   const rand = mulberry32(90210);
-  root.add(buildBrush(rand, 340));
-  for (let i = 0; i < 11; i++) {
+  root.add(buildScatter(rand, v.scatter));
+  for (let i = 0; i < v.clouds; i++) {
     const cloud = buildCloud(rand);
     const ang = rand() * Math.PI * 2;
     // Far enough out and high enough that a cloud never crowds the top of the

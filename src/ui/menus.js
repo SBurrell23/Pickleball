@@ -5,6 +5,7 @@ import {
   avatarDef, cleanName, optionsFor, findOption, isUnlocked, loadLook, saveLook,
 } from '../game/avatar.js';
 import { cssHex } from '../game/color.js';
+import { VENUES, TIMES, getVenue, getTime } from '../render/venues.js';
 import { seasonLength } from '../game/enemies.js';
 import {
   DIFFICULTIES, DIFFICULTY_NAME, START_LIVES, MAX_LIVES, bonusAt,
@@ -200,6 +201,16 @@ export class Menus {
         this.settings.set('difficulty', val);
         this.render();
         break;
+      case 'venue':
+        this.settings.set('venue', val);
+        this.cb.onVenue?.(val, this.settings.get('timeOfDay'));
+        this.render();
+        break;
+      case 'timeOfDay':
+        this.settings.set('timeOfDay', val);
+        this.cb.onVenue?.(this.settings.get('venue'), val);
+        this.render();
+        break;
       case 'playExhibition':
         this.cb.onStartLocal?.(this.profile(), { mode: this.data.mode || 'singles' });
         break;
@@ -293,6 +304,33 @@ export class Menus {
     this.show(back);
   }
 
+  // ---- venue picker -------------------------------------------------------
+
+  // Shared by the exhibition screen and the lobby, so the host and a solo
+  // player are choosing from the same control rather than two that drift.
+  // Swatches rather than names alone: a court is a look, and the two colours
+  // that matter are the surface and the kitchen.
+  venuePicker(venueId, timeId, disabled = false) {
+    const cards = VENUES.map((v) => `
+      <button class="venue-card ${v.id === venueId ? 'on' : ''}"
+        data-act="venue" data-val="${v.id}" ${disabled ? 'disabled' : ''}
+        title="${escapeAttr(v.blurb)}">
+        <span class="venue-swatch" style="--a:${v.court.surface};--b:${v.kitchen.surface};--c:${v.ground.base}"></span>
+        <strong>${escapeHtml(v.name)}</strong>
+      </button>`).join('');
+    const times = TIMES.map((t) => `
+      <button class="${t.id === timeId ? 'on' : ''}" data-act="timeOfDay"
+        data-val="${t.id}" ${disabled ? 'disabled' : ''}>${t.name}</button>`).join('');
+    return `
+      <div class="opt-row"><span class="opt-label">Court</span>
+        <div class="venues">${cards}</div></div>
+      <p class="muted fine">${escapeHtml(getVenue(venueId).blurb)}</p>
+      <div class="picker">
+        <span class="picker-label">Time of day</span>
+        <div class="seg">${times}</div>
+      </div>`;
+  }
+
   // ---- exhibition ---------------------------------------------------------
 
   screen_exhibition() {
@@ -315,6 +353,7 @@ export class Menus {
             data-act="difficulty" data-val="${v}">${DIFFICULTY_NAME[v]}</button>`).join('')}
         </div>
       </div>
+      ${this.venuePicker(this.settings.get('venue'), this.settings.get('timeOfDay'))}
     `, `
       <button data-act="back" data-val="main">Back</button>
       <button data-act="editor" data-val="exhibition">My Player</button>
@@ -358,7 +397,15 @@ export class Menus {
 
   render() {
     const fn = this['screen_' + this.screen];
-    if (!fn) { this.el.innerHTML = ''; this._renderedScreen = null; return; }
+    if (!fn) {
+      // Blanking the layer silently is how a missing screen turns into "the
+      // button does nothing" -- which is exactly how screen_join went missing
+      // for a commit. Say so instead.
+      console.error(`Menus: no screen named "${this.screen}"`);
+      this.el.innerHTML = '';
+      this._renderedScreen = null;
+      return;
+    }
 
     // Picking a character or a difficulty re-renders the same screen. Rebuilding
     // the markup is fine, but the panel must not replay its entrance animation
@@ -808,6 +855,25 @@ export class Menus {
     `, `<button data-act="back" data-val="main">Back</button>`);
   }
 
+  screen_join() {
+    return this.frame('Join a room', `
+      <p class="muted">Ask the host for their five-character room code. You
+        will play as <b>${escapeHtml(this.look().name)}</b> &mdash; the court
+        and the match type are the host's to pick.</p>
+      <label class="field big-field">
+        <span>Room code</span>
+        <input id="roomCode" maxlength="5" autocomplete="off" spellcheck="false"
+          placeholder="ABCDE" style="text-transform:uppercase">
+      </label>
+      <p class="err" id="menuError">${this.data.error || ''}</p>
+      <p class="muted" id="menuStatus">${this.data.status || ''}</p>
+    `, `
+      <button data-act="back" data-val="main">Back</button>
+      <button data-act="editor" data-val="join">My Player</button>
+      <button class="primary" data-act="join">Connect</button>
+    `);
+  }
+
   screen_lobby() {
     const d = this.data;
     const players = (d.players || []).map((p) => `
@@ -840,7 +906,10 @@ export class Menus {
           <button class="${d.mode === 'singles' ? 'on' : ''}" data-act="lobbyMode" data-val="singles">Singles</button>
           <button class="${d.mode === 'doubles' ? 'on' : ''}" data-act="lobbyMode" data-val="doubles">Doubles</button>
         </div>
-      </div>` : ''}
+      </div>
+      ${this.venuePicker(d.venue || 'rec', d.time || 'day')}`
+    : `<p class="muted">Court: <b>${escapeHtml(getVenue(d.venue).name)}</b>,
+         ${escapeHtml(getTime(d.time).name.toLowerCase())}. The host picks.</p>`}
       <p class="muted" id="menuStatus">${d.status || ''}</p>
     `, `
       <button data-act="leaveLobby">Leave</button>

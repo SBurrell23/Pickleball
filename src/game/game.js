@@ -129,6 +129,14 @@ export class Game {
     return names.join(' & ') || 'Team';
   }
 
+  // The venue can be rebuilt underneath a live game (a graphics setting, or
+  // the host changing court between matches), so the crowd reference has to
+  // be re-taken rather than captured once at start.
+  setCourt(court) {
+    this.court = court;
+    this.crowd = court ? court.getObjectByName('crowd') : null;
+  }
+
   applyGlow() {
     const on = this.settings.get('glow');
     this.fx.pMat.blending = on ? THREE.AdditiveBlending : THREE.NormalBlending;
