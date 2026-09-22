@@ -135,8 +135,7 @@ const SWINGS = [
     what: 'The whole power bar, sweet spot near the top. All the pace you can '
       + 'get, and the only swing that can really hurt anybody.',
     cost: 'The longest wait, and the most rope to hang yourself with. Overfill '
-      + 'the bar and you choke it -- straight into the net off a low ball, over '
-      + 'the baseline off a high one. Either way the point is gone.',
+      + 'the bar and you choke it, and a choked ball never comes back.',
   },
   {
     key: 'Right Click', name: 'Dink', tag: 'Half bar',
@@ -144,7 +143,7 @@ const SWINGS = [
       + 'the time. The answer when a ball comes back too fast to fill a drive.',
     cost: 'It can never hit hard -- you stay in the rally rather than win it. '
       + 'And the red is still the red: overfill the short bar and you choke it '
-      + 'exactly the same way.',
+      + 'just the same.',
   },
   {
     key: 'Space', name: 'Lob', tag: 'No bar',
