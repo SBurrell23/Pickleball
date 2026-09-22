@@ -90,17 +90,23 @@ export const SWING = {
   // high the ball got: a token lift is worth nothing, a moon ball is worth a
   // much bigger window. This is the price of the lob, and it applies to bots
   // too, so throwing one up is a real decision rather than a free reset.
-  // Thresholds set against measured play: a real lob peaks around 8m, so a
-  // ball has to clear well above anyone's reach before it counts at all.
-  LOB_APEX_LO: 3.5,         // below this apex it is just a normal ball
-  LOB_APEX_HI: 9.0,         // a full moon ball, worth the whole bonus
-  // Sweet/perfect band multiplier for whoever answers a full-height lob.
-  // It was 2.40, which did not widen the window so much as remove it: the
-  // reply to a lob was measured perfect or good 1043 times out of 1044, when
-  // a normal shot grades perfect about 13% of the time. That is not a cost
-  // for lobbing, it is a guaranteed loss, and it is why nobody could ever
-  // afford the shot. A lob should hand over an advantage, not the point.
-  LOB_SWEET: 1.25,
+  // Thresholds set against measured play, and they have to move whenever the
+  // lob's arc does: a lob now peaks around 5.3m rather than the 9.5m it used
+  // to, so a curve that only paid out near 9 would have handed over almost
+  // nothing. The floor sits above a normal rally ball -- a dink runs 2.95m at
+  // the median -- so ordinary play does not collect this by accident.
+  LOB_APEX_LO: 3.6,         // below this apex it is just a normal ball
+  LOB_APEX_HI: 5.4,         // a full lob, worth the whole bonus
+  // Sweet/perfect band multiplier for whoever answers a full lob: roughly
+  // double the window. Sitting under one should be an invitation, and a lob
+  // you cannot punish is not a decision anybody has to think about.
+  //
+  // Paired with the lower arc rather than tuned on its own. A ball nine
+  // metres up hangs and then drops almost vertically, so the old version
+  // made the answer wider AND the ball harder to read -- two effects pulling
+  // opposite ways. Bring it down to where it can be watched, then widen the
+  // band, and the shot reads as the gift it is meant to be.
+  LOB_SWEET: 2.20,
 
   // The instant lob (space). No bar, no timing, so no quality to grade -- it
   // trades every bit of that for being available the moment you press it.

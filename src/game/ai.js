@@ -173,7 +173,7 @@ function fireSwing(sim, p, st, tune) {
   const shot = classifyShot({
     mode: st.sw.mode, beforeBounce,
     ballHeight: sim.ball.p.y, netHeight: COURT.NET_H_CENTER,
-    apexY: sim.ball.peakY ?? 0,
+    offLob: sim.ball.lastShot === SHOT.LOB,
     isServe: false, quality: res.quality,
   });
   sim.queueSwing(p.idx, {

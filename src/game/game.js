@@ -332,7 +332,7 @@ export class Game {
       beforeBounce: ball.bouncesSinceHit === 0,
       ballHeight: ball.p.y,
       netHeight: COURT.NET_H_CENTER,
-      apexY: ball.peakY ?? 0,
+      offLob: ball.lastShot === SHOT.LOB,
       isServe,
       quality: res.quality,
     });

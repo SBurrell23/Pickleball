@@ -17,7 +17,11 @@ const FLIGHT = {
   [SHOT.SMASH]:  { base: 0.70, min: 0.34, spin:  1.35 },
   [SHOT.VOLLEY]: { base: 1.02, min: 0.64, spin:  0.55 },
   [SHOT.DINK]:   { base: 1.06, min: 0.80, spin: -0.60 },
-  [SHOT.LOB]:    { base: 2.15, min: 1.60, spin: -0.30 },
+  // Was 2.15/1.60, which put the ball nine and a half metres up. That is not
+  // a lob, it is a punt: it hangs so long and drops so steeply that timing
+  // the answer becomes its own puzzle, on top of the wider band the shot is
+  // already meant to hand over. Low enough now to be read and hit.
+  [SHOT.LOB]:    { base: 1.50, min: 1.28, spin: -0.30 },
   [SHOT.SERVE]:  { base: 1.38, min: 0.95, spin:  0.20 },
 };
 
@@ -103,7 +107,7 @@ export class Sim {
       spin: 0, sideSpin: 0,
       live: false, held: true,
       lastHit: -1, lastTeam: -1,
-      shotCount: 0, bouncesSinceHit: 0, bounceInKitchen: false,
+      shotCount: 0, bouncesSinceHit: 0, bounceInKitchen: false, lastShot: null,
       // Highest the ball has been since it was last struck. Reading a lob is
       // about how high it went, not where it is right now, so the receiver's
       // sweet-spot bonus is keyed off the apex rather than live height.
@@ -725,6 +729,7 @@ export class Sim {
     b.sideSpin = (pend.side ?? 0) * 0.6;
     b.live = true; b.held = false;
     b.lastHit = p.idx; b.lastTeam = p.team;
+    b.lastShot = shot;
     b.bouncesSinceHit = 0;
     b.bounceInKitchen = false;
     b.peakY = b.p.y;

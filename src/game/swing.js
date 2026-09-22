@@ -214,7 +214,7 @@ export function releaseSwing(sw, tuning) {
 
 // Decide which archetype a released swing becomes, from context.
 export function classifyShot({
-  mode, beforeBounce, ballHeight, netHeight, isServe, quality, apexY = 0,
+  mode, beforeBounce, ballHeight, netHeight, isServe, quality, offLob = false,
 }) {
   if (isServe) return SHOT.SERVE;
   // Space is a lob and only a lob. It used to be a modifier held with the
@@ -226,22 +226,22 @@ export function classifyShot({
     // soft option, and giving it a second softness modifier only made the
     // two shots harder to tell apart. A high one can still be punched away.
     if (beforeBounce && ballHeight > netHeight + 0.42 && quality === QUALITY.PERFECT
-      && apexY < SWING.LOB_APEX_LO) {
+      && !offLob) {
       return SHOT.SMASH;
     }
     return SHOT.DINK;
   }
-  // Not off a ball dropping out of the sky. A lob passes down through the
-  // smash band on its way to the floor, so without this the shot was: go up,
-  // get put away. That made every high ball a gift and left the lob with no
-  // version of itself that was worth playing -- measured at 9% against an
-  // identical opponent who simply never used it. An overhead off a genuine
-  // lob is the hardest ball in the sport; here it was the easiest.
+  // Not off a lob. One passes down through the smash band on its way to the
+  // floor, so without this the shot was: go up, get put away -- measured at
+  // 9% against an identical opponent who simply never used it. An overhead
+  // off a genuine lob is the hardest ball in the sport; here it was free.
   //
-  // Same threshold that decides a ball WAS a lob, so the two cannot disagree:
-  // above it you may not smash, and below it there is no lob to speak of.
+  // This asks what the ball WAS, not how high it got. Judging by height
+  // caught ordinary play instead: a dink reaches 2.95m at the median and
+  // 4.79m at the ninetieth, so a height rule generous enough to cover lobs
+  // was quietly banning the smash off half the dinks in the game.
   if (beforeBounce && ballHeight > netHeight + 0.55 && quality === QUALITY.PERFECT
-    && apexY < SWING.LOB_APEX_LO) {
+    && !offLob) {
     return SHOT.SMASH;
   }
   return SHOT.DRIVE;
