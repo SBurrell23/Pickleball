@@ -134,9 +134,26 @@ check(dblAvg >= 4 && dblAvg <= 30, `doubles mean rally ${dblAvg.toFixed(2)} outs
 // Rallies ending because nobody reached the ball is a legitimate outcome and
 // dominates in bot-vs-bot play, so this checks for "always the same way"
 // rather than policing the mix.
+//
+// The band moved once the pickable roster went away. With both sides on the
+// identical human stat line, points end on a double bounce 94% of the time
+// measured over 30 games -- the bots time their shots well, so somebody being
+// beaten to the ball is nearly the only way a rally ends between them. The
+// old 95% ceiling sat on that median and flaked about half the time. What is
+// still worth catching is a rule that has stopped firing altogether, so this
+// asks for a spread of reasons and a top share short of total.
 const topReason = Math.max(...Object.values(allReasons));
-check(Object.keys(allReasons).length >= 3 && topReason / totalR < 0.95,
-  'points are essentially all ending the same way -- a rule or the AI has broken');
+const errors = totalR - (allReasons['Double bounce'] || 0);
+// A kitchen volley or a serve out is under 1% of points between two bots
+// this even, so over eight games "how many distinct reasons appeared" is
+// mostly a coin toss. The count of error endings is the check with teeth.
+check(Object.keys(allReasons).length >= 2,
+  'every point ended for the same reason -- a rule has stopped firing');
+check(topReason / totalR < 0.99,
+  'every single point ended the same way -- a rule or the AI has broken');
+check(errors >= 2,
+  `only ${errors} points across the run ended in an error -- the net and the `
+  + 'lines have stopped being reachable');
 // If serves stop coming back, or returns stop being answered, rallies collapse
 // to two shots and the game stops being a game.
 check(returnRate > 0.6, `only ${pct(flow.returns, goodServes)} of good serves came back`);
