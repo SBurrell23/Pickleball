@@ -1,5 +1,5 @@
 import {
-  COURT, BALL, FENCE, PLAY, RULES, SHOT, QUALITY, SWING_MODE,
+  COURT, BALL, FENCE, PLAY, RULES, SHOT, QUALITY, SWING, SWING_MODE,
 } from './constants.js';
 import { resolveDef } from './characters.js';
 import { netHeightAt, solveToLand, clampSpeed, speedOf } from './ballistics.js';
@@ -524,13 +524,20 @@ export class Sim {
   // ---- swing resolution --------------------------------------------------
 
   canReach(p, bp) {
-    if (bp.y > p.reachY) return false;
+    // A lob is a scoop, not a stroke, and it is the only swing that gets to
+    // stretch for the ball. That is the whole reason to own the shot: an
+    // instant block already answers anything you could have blocked, so
+    // without a ball of its own the lob was strictly the worse of the two.
+    const lobbing = p.pending && p.pending.mode === SWING_MODE.LOB;
+    const reachY = lobbing ? p.reachY * SWING.LOB_REACH_Y : p.reachY;
+    const reach = lobbing ? p.reach * SWING.LOB_REACH : p.reach;
+    if (bp.y > reachY) return false;
     if (bp.y < 0.03) return false;
     const dx = bp.x - p.x, dz = bp.z - p.z;
     const horiz = Math.hypot(dx, dz);
     // High balls are harder to get a paddle on at full stretch.
     const shrink = 1 - 0.26 * Math.max(0, (bp.y - 0.95) / 0.85);
-    return horiz <= p.reach * shrink;
+    return horiz <= reach * shrink;
   }
 
   resolveSwing(p, dt) {
@@ -672,11 +679,15 @@ export class Sim {
 
     // A well-struck ball finds the arc that clears the net; a mistimed one does not.
     const allowLoft = quality !== QUALITY.WEAK;
-    // A ball that bounced in your kitchen can only be lifted back over with a
-    // soft shot. Trying to drive one buries it in the net -- which is what
-    // happens in life too when you swing hard on a ball at your feet.
+    // A ball that bounced in your kitchen can only be lifted back over with
+    // the short bar. Trying to drive one buries it in the net -- which is
+    // what happens in life too when you swing hard on a ball at your feet.
+    //
+    // The instant lob is caught by this as well. It is the panic button, and
+    // a panic button that also solved the kitchen would leave the short bar
+    // with nothing that is uniquely its own.
     const drivingOffKitchen = !beforeBounce && kitchenBounce
-      && pend.mode === SWING_MODE.DRIVE;
+      && (pend.mode === SWING_MODE.DRIVE || pend.mode === SWING_MODE.LOB);
 
     // Held the bar into the red. The swing comes through late and out of
     // shape, and the ball is gone: taken low it is buried in the net, taken

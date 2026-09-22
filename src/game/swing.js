@@ -15,9 +15,8 @@ export function lobBonus(apexY) {
   return 1 + (LOB_SWEET - 1) * k;
 }
 
-// Two swings, chosen by which mouse button you hold. Both are filling power
-// bars with a sweet band near the top; they differ in how long the bar is and
-// what the shot can do.
+// Three swings. Two of them fill a power bar with a sweet band near the top
+// and differ in how long the bar is; the third has no bar at all.
 //
 //  DRIVE (left button) -- the full bar. A release inside the band with the bar
 //    near full is the most pace available, so it is a test of nerve as much as
@@ -28,12 +27,57 @@ export function lobBonus(apexY) {
 //    arrives in roughly half the time, but it only ever produces a dink. The
 //    point is the decision: when a fast ball leaves no time to fill a drive,
 //    take a clean quick dink instead of a mistimed big one.
+//
+//  LOB (space) -- no bar. It fires the frame you press it, which is the whole
+//    of its value: a smash arrives faster than even the short bar can fill,
+//    so this is the only legal answer to one. In exchange it hands the ball
+//    back high and slow, which is the best thing your opponent can be given.
+//    Reach for it when the alternative is not reaching the ball at all.
 
 export const MODE = SWING_MODE;
 
-// How long this mode's bar takes to fill end to end.
+// How long this mode's bar takes to fill end to end. The lob has no bar and
+// never reaches here -- it does not go through beginSwing at all.
 function fillTime(mode) {
   return mode === MODE.QUICK ? SWING.QUICK_CHARGE : SWING.CHARGE_TIME;
+}
+
+/**
+ * The instant lob. Shaped exactly like a releaseSwing result so the callers
+ * that queue a shot do not have to care which of the three produced it, but
+ * built rather than graded: there is no bar to have been on time for.
+ *
+ * Quality is fixed at OK. Not GOOD, because a shot you did not have to time
+ * should not sit above one you did; not WEAK, because WEAK floats the ball
+ * in the sim and a lob that floats on top of being a lob is unplayable.
+ */
+export function lobSwing(tuning, rand = Math.random) {
+  return {
+    mode: MODE.LOB,
+    quality: QUALITY.OK,
+    choke: false,
+    accuracy: SWING.LOB_ACCURACY,
+    powerFrac: SWING.LOB_POWER,
+    power: SWING.LOB_POWER * QUALITY_POWER[QUALITY.OK] * tuning.powerScale,
+    // Its own scatter rather than the quality table's: the point of the shot
+    // is that it lands roughly where you pointed, so the fuzz is a property
+    // of the swing, not of how well it was struck.
+    scatter: SWING.LOB_SCATTER * tuning.scatterScale,
+    t: 0,
+    held: 0,
+    rand: rand(),
+  };
+}
+
+/**
+ * How much the sweet band shrinks for a player who is swinging on the move.
+ * 1 standing still, PRESSURE_ZONE at a full run. This is what makes where you
+ * put the ball matter: before it, a shot someone had to sprint for graded the
+ * same as one at their feet.
+ */
+export function pressureScale(speed) {
+  const k = Math.max(0, Math.min(1, speed / SWING.PRESSURE_SPEED));
+  return 1 + (SWING.PRESSURE_ZONE - 1) * k;
 }
 
 export function createSwingState() {
@@ -169,21 +213,35 @@ export function releaseSwing(sw, tuning) {
 }
 
 // Decide which archetype a released swing becomes, from context.
-export function classifyShot({ mode, soft, beforeBounce, ballHeight, netHeight, isServe, quality }) {
+export function classifyShot({
+  mode, beforeBounce, ballHeight, netHeight, isServe, quality, apexY = 0,
+}) {
   if (isServe) return SHOT.SERVE;
+  // Space is a lob and only a lob. It used to be a modifier held with the
+  // drive, which meant the game's one escape shot was also its least
+  // discoverable -- and it cost the drive nothing to reach for.
+  if (mode === MODE.LOB) return SHOT.LOB;
   if (mode === MODE.QUICK) {
     // Always a dink. Space does nothing here: the short bar is already the
     // soft option, and giving it a second softness modifier only made the
     // two shots harder to tell apart. A high one can still be punched away.
-    if (beforeBounce && ballHeight > netHeight + 0.42 && quality === QUALITY.PERFECT) {
+    if (beforeBounce && ballHeight > netHeight + 0.42 && quality === QUALITY.PERFECT
+      && apexY < SWING.LOB_APEX_LO) {
       return SHOT.SMASH;
     }
     return SHOT.DINK;
   }
-  // Space still lifts a drive into a lob, which is the one place it earns
-  // its keep -- it turns the big swing into a genuinely different shot.
-  if (soft) return SHOT.LOB;
-  if (beforeBounce && ballHeight > netHeight + 0.55 && quality === QUALITY.PERFECT) {
+  // Not off a ball dropping out of the sky. A lob passes down through the
+  // smash band on its way to the floor, so without this the shot was: go up,
+  // get put away. That made every high ball a gift and left the lob with no
+  // version of itself that was worth playing -- measured at 9% against an
+  // identical opponent who simply never used it. An overhead off a genuine
+  // lob is the hardest ball in the sport; here it was the easiest.
+  //
+  // Same threshold that decides a ball WAS a lob, so the two cannot disagree:
+  // above it you may not smash, and below it there is no lob to speak of.
+  if (beforeBounce && ballHeight > netHeight + 0.55 && quality === QUALITY.PERFECT
+    && apexY < SWING.LOB_APEX_LO) {
     return SHOT.SMASH;
   }
   return SHOT.DRIVE;

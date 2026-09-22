@@ -63,10 +63,11 @@ export const PLAY = {
   SERVE_RESET: 1.15,    // pause between points
 };
 
-// The two swings. Left button is the full power bar, right button the short
-// one. Lives here rather than in swing.js so the simulation can reason about
-// which swing produced a shot without importing the mini-game.
-export const SWING_MODE = { DRIVE: 'drive', QUICK: 'quick' };
+// The three swings. Left button is the full power bar, right button the short
+// one, space an instant lob with no bar at all. Lives here rather than in
+// swing.js so the simulation can reason about which swing produced a shot
+// without importing the mini-game.
+export const SWING_MODE = { DRIVE: 'drive', QUICK: 'quick', LOB: 'lob' };
 
 // Charge / timing mini-game tuning.
 export const SWING = {
@@ -93,7 +94,44 @@ export const SWING = {
   // ball has to clear well above anyone's reach before it counts at all.
   LOB_APEX_LO: 3.5,         // below this apex it is just a normal ball
   LOB_APEX_HI: 9.0,         // a full moon ball, worth the whole bonus
-  LOB_SWEET: 2.40,          // sweet/perfect band multiplier at full height
+  // Sweet/perfect band multiplier for whoever answers a full-height lob.
+  // It was 2.40, which did not widen the window so much as remove it: the
+  // reply to a lob was measured perfect or good 1043 times out of 1044, when
+  // a normal shot grades perfect about 13% of the time. That is not a cost
+  // for lobbing, it is a guaranteed loss, and it is why nobody could ever
+  // afford the shot. A lob should hand over an advantage, not the point.
+  LOB_SWEET: 1.25,
+
+  // The instant lob (space). No bar, no timing, so no quality to grade -- it
+  // trades every bit of that for being available the moment you press it.
+  // Measured against the reaction windows it exists for: two thirds of
+  // smashes arrive faster than the SHORT bar can be filled, so before this
+  // there was no legal answer to one at all beyond a tap block.
+  LOB_POWER: 0.46,          // fixed, and modest: this is a reset, not a shot
+  LOB_SCATTER: 0.85,        // metres of aim fuzz -- accurate, not surgical
+  LOB_ACCURACY: 0.5,        // what it scores on the shot-accuracy column, flat
+
+  // The one thing the lob can do that nothing else can: reach. A tap on the
+  // mouse is already instant and already safe, and it comes back LOW, so on
+  // any ball both shots can play, the block simply wins. Without this the lob
+  // had no situation of its own and measured as a losing shot at every
+  // tuning -- the answer was not to make it stronger but to give it a ball
+  // that belongs to it. Scooping one off your shoelaces or above your head is
+  // exactly the shot a person reaches for when the alternative is not
+  // touching the ball at all.
+  LOB_REACH: 1.42,          // multiplies the paddle radius
+  LOB_REACH_Y: 1.30,        // and the height you can still get a paddle on
+
+  // Swinging on the run. The only swing-window modifier before this was the
+  // one that tightens serves, which meant court position cost a player
+  // nothing: a ball at your feet and a ball you had to sprint to graded the
+  // same. That is also why a lob could never be answered by putting it
+  // somewhere awkward -- there was no such thing as awkward.
+  //
+  // Sampled when the swing STARTS, not when it is released, so the band you
+  // are aiming at never moves while you hold it. Plant, then swing.
+  PRESSURE_SPEED: 4.2,      // running this fast at the start is full pressure
+  PRESSURE_ZONE: 0.62,      // band multiplier there; 1.0 is standing still
 };
 
 export const RULES = {

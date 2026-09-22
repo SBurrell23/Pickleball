@@ -117,15 +117,40 @@ const SCHEMA = {
 
 function pct(v) { return Math.round(v * 100) + '%'; }
 
+// Movement and the odds and ends. The three swings get their own cards on the
+// How to Play screen rather than a row each here -- they are the game, and a
+// table row does not have space to say why you would pick one.
 const CONTROLS = [
-  ['W A S D', 'Move. W is always toward the net.'],
-  ['Mouse', 'Aim. The marker on the far court is where the ball will land. Point at the net and it fades out around the cursor, so you can see the kitchen you are trying to drop into.'],
-  ['Hold Left Click', 'Drive shot. Full power bar — all the pace you can get, but the sweet spot is a long way up.'],
-  ['Hold Right Click', 'Dink shot. Half-length bar — sweet spot in half the time, but it can never hit hard.'],
-  ['Release', 'Swing. Stop the marker in the sweet spot. Let the bar fill all the way and it turns red -- release in the red and you have <b>choked</b>: the ball goes into the net or over the baseline, every time.'],
-  ['Space', 'Hold during a <b>drive</b> to loop it into a lob instead. Does nothing on a dink — that is already the soft shot.'],
-  ['Shift', 'Dash. Costs stamina.'],
+  ['W A S D', 'Move. W is always toward the net, whichever end you are at.'],
+  ['Mouse', 'Aim. The marker on the far court is where the ball will land.'],
+  ['Shift', 'Dash. Costs stamina, and a spent bar is slow to come back.'],
   ['Esc', 'Pause.'],
+];
+
+// The three swings, as cards. Key, name, one line on what it is for, and the
+// catch -- because every one of them is a trade and the trade is the game.
+const SWINGS = [
+  {
+    key: 'Left Click', name: 'Drive', tag: 'Full bar',
+    what: 'The whole power bar, sweet spot near the top. All the pace you can '
+      + 'get, and the only swing that can really hurt anybody.',
+    cost: 'The longest wait. Fill it past the end and it turns red -- let go '
+      + 'in the red and the ball is gone, netted or long, every time.',
+  },
+  {
+    key: 'Right Click', name: 'Dink', tag: 'Half bar',
+    what: 'The same bar at half the length, so the sweet spot arrives in half '
+      + 'the time. The answer when a ball comes back too fast to fill a drive.',
+    cost: 'It can never hit hard. You stay in the rally rather than win it.',
+  },
+  {
+    key: 'Space', name: 'Lob', tag: 'No bar',
+    what: 'Fires the instant you press it -- no charge, no timing -- and it '
+      + 'stretches further than either of the others, so it reaches balls at '
+      + 'your shoelaces or above your head that nothing else touches.',
+    cost: 'It hands back a high, slow ball with seconds to line it up. This is '
+      + 'the shot for when the alternative is not reaching the ball at all.',
+  },
 ];
 
 export class Menus {
@@ -1085,29 +1110,52 @@ export class Menus {
   }
 
   screen_controls() {
+    const swings = SWINGS.map((sw) => `
+      <div class="swing-card">
+        <div class="swing-head">
+          <strong>${sw.name}</strong>
+          <span class="kbd">${sw.key}</span>
+        </div>
+        <span class="swing-tag">${sw.tag}</span>
+        <p>${sw.what}</p>
+        <p class="cost"><b>The catch.</b> ${sw.cost}</p>
+      </div>`).join('');
+
+    const keys = CONTROLS.map(([k, v]) => `
+      <div class="key-row"><span class="kbd">${k}</span><span>${v}</span></div>`).join('');
+
+    const rules = [
+      ['The kitchen', 'The coloured zone at the net. Stand in it all you like, '
+        + 'but you may not volley from it -- let the ball bounce first.'],
+      ['Balls that land in your kitchen', 'Only the dink can lift one back. '
+        + 'Drive it or lob it off the floor down there and you bury it in the net.'],
+      ['Plant your feet', 'Starting a swing while you are running narrows the '
+        + 'sweet spot. Getting to the ball early is worth as much as timing it.'],
+      ['Two bounces first', 'The serve and the return must both bounce before '
+        + 'anyone is allowed to volley.'],
+      ['Serving', 'Underhand and cross-court, and it has to clear the kitchen.'],
+      ['Scoring', 'Rally scoring to 11, win by two.'],
+    ].map(([k, v]) => `<li><b>${k}.</b> ${v}</li>`).join('');
+
     return this.frame('How to play', `
-      <table class="controls">${CONTROLS.map(
-        ([k, v]) => `<tr><th>${k}</th><td>${v}</td></tr>`).join('')}</table>
-      <h3>Two shots</h3>
-      <p>The <b>drive shot</b> is left click: a power bar fills while you hold, with the sweet
-      spot near the top. You want maximum power <i>and</i> a release inside the band, so it is a
-      test of nerve. Hold too long and the shot overcooks into a floater.</p>
-      <p>The <b>dink shot</b> is right click: the same bar at half the length, so its sweet spot
-      arrives in half the time. The catch is that it can never hit hard. That is the real
-      decision in this game — when a ball comes back too fast to fill a drive, you can force a
-      mistimed big shot and get punished, or take a clean quick dink and stay in the rally.</p>
-      <h3>Rules worth knowing</h3>
-      <ul class="rules">
-        <li><b>The kitchen</b> is the coloured zone by the net. You may stand in it, but you may
-          not volley from it — let the ball bounce first.</li>
-        <li><b>A ball that bounces in your kitchen can only be dinked back.</b> Try to drive one
-          off the floor down there and you will bury it in the net.</li>
-        <li><b>Two-bounce rule:</b> the serve and the return must both bounce before anyone
-          can volley.</li>
-        <li><b>Serving</b> is underhand and cross-court, and must clear the kitchen.</li>
-        <li>Rally scoring to 11, win by 2.</li>
-      </ul>
-    `, `<button data-act="back" data-val="${this.data.returnTo || 'main'}">Back</button>`);
+      <section class="home-sec">
+        <h3 class="sec-label">The three swings</h3>
+        <div class="swing-cards">${swings}</div>
+      </section>
+      <section class="home-sec">
+        <div class="howto-split">
+          <div>
+            <h3 class="sec-label">Everything else</h3>
+            <div class="key-grid">${keys}</div>
+          </div>
+          <div>
+            <h3 class="sec-label">Rules worth knowing</h3>
+            <ul class="rules">${rules}</ul>
+          </div>
+        </div>
+      </section>
+    `, `<button data-act="back" data-val="${this.data.returnTo || 'main'}">Back</button>`,
+    'wide');
   }
 
   screen_pause() {

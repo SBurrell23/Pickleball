@@ -1,12 +1,12 @@
 import * as THREE from '../../vendor/three.module.js';
-import { COURT, PLAY, SWING, QUALITY } from './constants.js';
+import { COURT, PLAY, SWING, QUALITY, SHOT } from './constants.js';
 import { Sim, PHASE, SWINGSTATE } from './sim.js';
 import { swingTuning } from './characters.js';
 import { createBotState, updateBot } from './ai.js';
 import { predictLanding, netHeightAt } from './ballistics.js';
 import {
   MODE, createSwingState, beginSwing, updateSwing, releaseSwing,
-  sweetZone, classifyShot, lobBonus,
+  sweetZone, classifyShot, lobBonus, lobSwing, pressureScale,
 } from './swing.js';
 import {
   buildBall, buildBallShadow, animateCrowd, cheerCrowd, setNetWindow,
@@ -258,10 +258,52 @@ export class Game {
   // Serving hands you unlimited time to stare at the bar, so its bands are far
   // tighter than in a rally. The wider "ok" shoulder is untouched, so this
   // costs quality rather than making the serve unplayable.
+  //
+  // Everything else is graded on whether you were set when you started. A
+  // serve is taken standing still by definition, so the two never combine.
   zoneScaleFor(mode) {
     const serving = this.sim.phase === PHASE.SERVE && this.sim.serverIdx === this.myIdx;
-    if (!serving) return 1;
-    return mode === MODE.QUICK ? SWING.SERVE_ZONE_QUICK : SWING.SERVE_ZONE;
+    if (serving) return mode === MODE.QUICK ? SWING.SERVE_ZONE_QUICK : SWING.SERVE_ZONE;
+    const me = this.me;
+    return pressureScale(Math.hypot(me.vx || 0, me.vz || 0));
+  }
+
+  /**
+   * The instant lob. No bar, no charge, no release -- it goes the frame the
+   * key is pressed, which is the entire point of it: a smash arrives faster
+   * than the short bar can be filled, so this is the only thing that answers
+   * one. The price is a high slow ball, and a high slow ball is exactly what
+   * the other player wants.
+   */
+  onLob() {
+    if (!this.canStartSwing()) return;
+    // Cancel a bar already on its way up. Pressing space is a decision that
+    // the charge is not going to make it, so honour that rather than making
+    // the player let go of the mouse first.
+    if (this.swing.active) {
+      this.swing.active = false;
+      this.audio.chargeStop();
+    }
+    const res = lobSwing(this.myTuning);
+    const payload = {
+      shot: SHOT.LOB,
+      mode: res.mode,
+      power: res.power,
+      scatter: res.scatter,
+      quality: res.quality,
+      choke: false,
+      accuracy: res.accuracy,
+      ax: this.aim.x,
+      az: this.aim.z,
+      rewind: 0,
+    };
+    if (this.isAuthority) {
+      this.sim.queueSwing(this.myIdx, payload);
+    } else {
+      this.net.sendSwing(payload);
+      this.startLocalSwingAnim();
+    }
+    this.stats.lobs = (this.stats.lobs || 0) + 1;
   }
 
   // Sitting under a lob should be an invitation, not just a long wait: the
@@ -287,10 +329,10 @@ export class Game {
     const ball = this.sim.ball;
     const shot = classifyShot({
       mode: res.mode,
-      soft: this.input.soft,
       beforeBounce: ball.bouncesSinceHit === 0,
       ballHeight: ball.p.y,
       netHeight: COURT.NET_H_CENTER,
+      apexY: ball.peakY ?? 0,
       isServe,
       quality: res.quality,
     });
@@ -910,7 +952,7 @@ export class Game {
       } else if (this.swing.mode === MODE.QUICK) {
         shotLabel = 'DINK SHOT';
       } else {
-        shotLabel = this.input.soft ? 'LOB' : 'DRIVE SHOT';
+        shotLabel = 'DRIVE SHOT';
       }
     }
 

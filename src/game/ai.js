@@ -3,7 +3,7 @@ import { PHASE, SWINGSTATE } from './sim.js';
 import { swingTuning } from './characters.js';
 import {
   MODE, createSwingState, beginSwing, updateSwing, releaseSwing, classifyShot,
-  lobBonus,
+  lobBonus, lobSwing, pressureScale,
 } from './swing.js';
 
 // The paddle goes live SWING_WINDUP after release and stays live for
@@ -32,7 +32,11 @@ export function createBotState(difficulty = 0.6) {
     startBias: 0,
     target: { x: 0, z: 0 },
     intercept: null,
-    soft: false,
+    // Whether this bot means to reset rather than attack. It used to double as
+    // the lob modifier; space is its own swing now, so this only steers where
+    // the bot aims.
+    reset: false,
+    spentOn: -1,
     leadAtStart: 0.42,
     reactionT: 0,
     lastShotSeen: -1,
@@ -167,13 +171,25 @@ function fireSwing(sim, p, st, tune) {
   const res = releaseSwing(st.sw, tune);
   const beforeBounce = sim.ball.bouncesSinceHit === 0;
   const shot = classifyShot({
-    mode: st.sw.mode, soft: st.soft, beforeBounce,
+    mode: st.sw.mode, beforeBounce,
     ballHeight: sim.ball.p.y, netHeight: COURT.NET_H_CENTER,
+    apexY: sim.ball.peakY ?? 0,
     isServe: false, quality: res.quality,
   });
   sim.queueSwing(p.idx, {
     shot, mode: res.mode, power: res.power, scatter: res.scatter,
     quality: res.quality, choke: res.choke, accuracy: res.accuracy,
+    ax: st.target.x, az: st.target.z, rewind: 0,
+  });
+}
+
+// The instant lob. Bots get it on the same terms a player does, which is what
+// keeps it an honest option rather than a thing only one side has to fear.
+function fireLob(sim, p, st, tune) {
+  const res = lobSwing(tune);
+  sim.queueSwing(p.idx, {
+    shot: SHOT.LOB, mode: res.mode, power: res.power, scatter: res.scatter,
+    quality: res.quality, choke: false, accuracy: res.accuracy,
     ax: st.target.x, az: st.target.z, rewind: 0,
   });
 }
@@ -273,6 +289,15 @@ export function updateBot(sim, p, st, dt) {
   } else if (arrival) {
     goalX = arrival.x;
     goalZ = arrival.z + p.side * 0.30;
+  } else if (sim.ball.lastHit === p.idx
+      && (sim.ball.peakY ?? 0) > SWING.LOB_APEX_LO) {
+    // We just put one up. Hold deep: the ball is going to come back as a
+    // drive with two seconds of preparation behind it, and the kitchen line
+    // is the worst place on the court to meet that. Advancing to it anyway
+    // was most of why a lobbing bot lost -- it lost to a double bounce
+    // immediately after, 900 times out of 924, without reaching the reply.
+    goalX = Math.sin(sim.time * 0.7 + st.idleJitter) * 0.5;
+    goalZ = p.side * (COURT.HALF_L * 0.80);
   } else {
     // Recover toward the kitchen line, which is where pickleball is won.
     const push = 0.35 + d * 0.5 + e * 0.12;
@@ -316,12 +341,12 @@ export function updateBot(sim, p, st, dt) {
     const atEdge = st.sw.t >= chokeEdge(st.sw.mode, dt, tune);
     if (!arrival) {
       // The read changed -- abandon rather than swing at nothing.
-      if (st.sw.held > 1.3 || atEdge) st.sw.active = false;
+      if (st.sw.held > 1.3 || atEdge) { st.sw.active = false; st.spentOn = sim.ball.shotCount; }
       return inp;
     }
     if (volleyIllegal(sim, p)) {
       // Hold: contacting the ball right now would hand over the point.
-      if (atEdge) st.sw.active = false;
+      if (atEdge) { st.sw.active = false; st.spentOn = sim.ball.shotCount; }
       return inp;
     }
     if (arrival.t <= CONTACT_LEAD || atEdge) fireSwing(sim, p, st, tune);
@@ -350,6 +375,52 @@ export function updateBot(sim, p, st, dt) {
     const driveNeed = (aim * SWING.CHARGE_TIME) / tune.chargeRate + CONTACT_LEAD;
     const quickNeed = (aim * SWING.QUICK_CHARGE) / tune.chargeRate + CONTACT_LEAD;
 
+    // The panic lob. Reaching here means contact is imminent and there is
+    // still no bar on the way up, so every option needing a head start has
+    // already failed -- the ball came too fast, or the bot has only just got
+    // to it. Either is what the shot is for.
+    //
+    // Except when the bot spent its bar and threw it away. It charges early
+    // for a serve return, cannot legally release while the double-bounce
+    // rule is unsatisfied, and lets the swing go at the red -- which leaves
+    // it standing here with no time left. That is a bot mistake, not an
+    // emergency, and lobbing every serve back is not what this is for.
+    //
+    // A ball that bounced in the kitchen is excluded: lobbing one buries it
+    // in the net exactly as driving it does, so those go to the short bar
+    // however late it is.
+    // And never off the kitchen line. Up there the short bar is always in
+    // reach, and a lob from two metres away is a smash with extra steps --
+    // the bot would be handing over the point it is trying to survive.
+    // A bot reaches for it only when it is out of time. It could also be used
+    // for a ball finishing outside normal reach -- the scoop is the one swing
+    // that stretches -- but every estimate of "will I get there" I tried
+    // over-fired, and a bot that lobs a ball it could have driven is a bot
+    // throwing points away. Left to the player, who can see it coming.
+    const spentBar = st.spentOn === sim.ball.shotCount;
+    if (!mustDink && !spentBar && !atKitchen && d > 0.3
+      && arrival.t <= CONTACT_LEAD) {
+      // Aim it, which nothing else here has had to do: every other swing sets
+      // st.target as it starts charging, and the panic lob never charges. It
+      // was firing on whatever target was left over -- on the first one of a
+      // match, the { 0, 0 } a bot is born with, which is the middle of the
+      // net. Every panic lob dropped a nine-metre moon ball into the
+      // opponent's kitchen, at their feet, which is the most attackable ball
+      // in the game.
+      //
+      // Deep and away is the only sensible place for it. The whole purpose of
+      // going up is to come down behind somebody.
+      const oppSide = -p.side;
+      const opp = sim.players.filter((o) => o.team !== p.team);
+      const awayX = opp.length && (opp.reduce((a, o) => a + o.x, 0) / opp.length) > 0 ? -1 : 1;
+      st.target = {
+        x: awayX * COURT.HALF_W * (0.3 + Math.random() * 0.45),
+        z: oppSide * COURT.HALF_L * (0.78 + Math.random() * 0.16),
+      };
+      if (arrival.t <= CONTACT_LEAD) fireLob(sim, p, st, tune);
+      return inp;
+    }
+
     let mode;
     if (mustDink) {
       mode = MODE.QUICK;
@@ -369,7 +440,11 @@ export function updateBot(sim, p, st, dt) {
 
     const chargeNeeded = (mode === MODE.QUICK ? quickNeed : driveNeed) - CONTACT_LEAD;
     if (arrival.t <= chargeNeeded + CONTACT_LEAD) {
-      beginSwing(st.sw, mode, tune);
+      // Swinging on the move costs a bot its band exactly as it costs a
+      // player theirs. Sampled at the start, so a bot that gets to the ball
+      // early and sets its feet is rewarded for it.
+      beginSwing(st.sw, mode, tune, Math.random,
+        pressureScale(Math.hypot(p.vx, p.vz)));
       // Bots get the same reward for putting away a lob that a player does,
       // so throwing one up is a real risk rather than a free reset.
       st.sw.lobBonus = lobBonus(Math.max(sim.ball.peakY ?? 0, sim.ball.p.y));
@@ -387,12 +462,12 @@ export function updateBot(sim, p, st, dt) {
         && arrival.y > COURT.NET_H_CENTER + 0.12
         && Math.random() < 0.25 + d * 0.15 + e * 0.30;
 
-      // A good bot resets with a soft ball when it is pinned deep.
+      // A good bot plays for position rather than pace when it is pinned deep.
       const pinnedDeep = Math.abs(arrival.z) > COURT.HALF_L * 0.72;
-      st.soft = attackable || speedUp
+      st.reset = attackable || speedUp
         ? false
         : (atKitchen ? Math.random() < 0.18 : (pinnedDeep && Math.random() < 0.3 * d));
-      const aggressive = attackable || speedUp || (!st.soft && !atKitchen);
+      const aggressive = attackable || speedUp || (!st.reset && !atKitchen);
       st.target = pickTarget(sim, p, st, aggressive);
     }
   }

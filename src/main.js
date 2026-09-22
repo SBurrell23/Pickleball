@@ -139,12 +139,7 @@ class App {
     this.paused = false;
     this.lastTime = performance.now();
 
-    this.input.on('press', (b) => this.game && !this.paused && this.game.onPress(b));
-    this.input.on('release', (b) => this.game && this.game.onRelease(b));
-    this.input.on('key', (code, down) => {
-      if (!down) return;
-      if (code === 'Escape') this.onEscape();
-    });
+    this.bindInput();
 
     settings.onChange((key) => this.onSettingChanged(key));
 
@@ -212,14 +207,31 @@ class App {
       // A new canvas means input has to be rebound to it.
       this.input.dispose();
       this.input = new Input(this.view.renderer.domElement);
-      this.input.on('press', (b) => this.game && !this.paused && this.game.onPress(b));
-      this.input.on('release', (b) => this.game && this.game.onRelease(b));
-      this.input.on('key', (c, d) => { if (d && c === 'Escape') this.onEscape(); });
+      this.bindInput();
       if (this.game) this.game.input = this.input;
     }
     this.audio.applySettings();
     if (key === 'shadows') this.buildScene();
     if (this.game) this.game.onSettingChanged(key);
+  }
+
+
+  // One place, because there are two: the constructor binds the first canvas
+  // and a graphics setting that rebuilds the renderer binds the next one. The
+  // two copies had already drifted -- the rebound set handled Escape with a
+  // different shape -- so a new binding added to one of them would have been
+  // a bug nobody saw until the player changed a setting mid-session.
+  bindInput() {
+    this.input.on('press', (b) => this.game && !this.paused && this.game.onPress(b));
+    this.input.on('release', (b) => this.game && this.game.onRelease(b));
+    this.input.on('key', (code, down) => {
+      if (!down) return;
+      if (code === 'Escape') { this.onEscape(); return; }
+      // Space is its own swing rather than a modifier held with the drive, so
+      // it is bound beside the buttons instead of read off the key set when
+      // the mouse comes up. Keydown only: there is nothing to hold.
+      if (code === 'Space' && this.game && !this.paused) this.game.onLob();
+    });
   }
 
   onEscape() {
