@@ -165,6 +165,20 @@ actually play inside. The towers carry a matched pair of textures, a facade
 and an emissive mask of only the lit windows, because using one for both
 made the concrete glow as hard as the glass.
 
+Anything outside the fence has to be placed against what that camera can
+actually see, which is a narrow, short cone: the top of its frame is 12.6
+degrees *below* horizontal, so the further out something stands the lower it
+has to be to be in shot, and a tall prop is governed by the height of its
+middle rather than its base. That one line decides everything — a pond lying
+flat can be twenty metres out, a pine whose middle is over two metres up has
+to be inside about eight. The first pass ignored height and put a whole
+forest just above the top of the frame.
+
+Centre Court hangs its honours twice for the same reason: banners at
+rafters height round the bowl, which only the wide view sees, and a low
+board on the inside of the advertising wall, which is what you read while
+playing. There are trophy tables at the apron corners.
+
 Only Centre Court is full. A rec court gets the dozen people who happened to
 be passing, which is what a rec court gets.
 

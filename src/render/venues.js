@@ -43,7 +43,10 @@ export const VENUES = [
       base: '#2c3a2b', blades: ['#3f6b3c', '#24341f', '#4a7a3f'],
       patches: ['#405c38', '#1c2a1b'], bladeCount: 6500,
     },
-    scatter: { kind: 'pine', count: 260, colors: [0x24422a, 0x1b3320, 0x2e5233, 0x152a1a] },
+    // `near` places some inside the play camera's cone, where the ring on
+    // the horizon never reaches.
+    scatter: { kind: 'pine', count: 260, near: 26,
+      colors: [0x24422a, 0x1b3320, 0x2e5233, 0x152a1a] },
     fence: { post: 0x23282a, mesh: 'rgba(150, 165, 160, 0.75)' },
     stands: { color: 0x2a2f2c, crowd: 0.32 },
     lights: { show: true, pole: 0x1d2220, lamp: 0xd8ffc8 },
@@ -63,7 +66,8 @@ export const VENUES = [
       base: '#c8a875', blades: ['#dcc08e', '#a88a5c', '#e0c795'],
       patches: ['#dbc190', '#a98d62'], bladeCount: 2200,
     },
-    scatter: { kind: 'cactus', count: 200, colors: [0x5f8a4a, 0x4c7040, 0x6f9a55, 0x8a7a52] },
+    scatter: { kind: 'cactus', count: 200, near: 22,
+      colors: [0x5f8a4a, 0x4c7040, 0x6f9a55, 0x8a7a52] },
     fence: { post: 0x6a5a48, mesh: 'rgba(222, 208, 180, 0.9)' },
     stands: { color: 0x7a6650, crowd: 0.52 },
     lights: { show: true, pole: 0x5a4c3c, lamp: 0xfff0c8 },
@@ -86,7 +90,7 @@ export const VENUES = [
     scatter: { kind: 'reed', count: 420, colors: [0x6f8a4a, 0x59743d, 0x84a05a, 0x46603a] },
     // A few standing pools out in the reeds. Not a flood -- just enough that
     // the ground reads as wet.
-    ponds: { count: 9, color: 0x2f6f8c, rim: 0x4a4a32, size: [3.5, 7] },
+    ponds: { count: 9, near: 8, color: 0x2f6f8c, rim: 0x4a4a32, size: [3.5, 7] },
     fence: { post: 0x4a4032, mesh: 'rgba(190, 200, 190, 0.8)' },
     stands: { color: 0x5a4c3a, crowd: 0.44 },
     lights: { show: true, pole: 0x3d352a, lamp: 0xfff4d0 },
@@ -115,6 +119,15 @@ export const VENUES = [
     // The bowl wall just behind the stands -- the only piece of this venue
     // the play camera is close enough to see.
     arena: { wall: 0x1c2438, fascia: 0x3f63b8 },
+    // Honours hung round the bowl. The past champions are the ladder's own
+    // roster, which is a nicer joke than inventing names.
+    banners: {
+      cloth: '#16234a', trim: '#d8a52a', text: '#e8eeff', trimHex: 0xd8a52a,
+      firstYear: 2014, perSide: 6, boardCount: 7,
+      champions: ['Sovereign', 'Obelisk', 'Kestrel', 'Echo', 'Bulwark',
+        'Ace', 'Stretch', 'Moss', 'Zip', 'Spot', 'Pip', 'Sovereign'],
+    },
+    trophies: { cloth: 0x2a1d3f, gold: 0xd8a52a, silver: 0xc8d2dd },
     fence: { style: 'wall', post: 0x1b2440, mesh: 'rgba(150,170,200,0.5)' },
     // Near enough sold out -- a handful of empty seats, which reads as a
     // real crowd where a perfectly solid block reads as wallpaper.

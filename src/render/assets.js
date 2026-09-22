@@ -274,7 +274,7 @@ export function buildCourt(quality = 'high', venueId) {
 
   const net = buildNet(quality);
   root.add(net);
-  root.userData.net = net.userData.net;
+  root.userData.net = net.userData;
   root.add(buildSurrounds(quality, v));
   return root;
 }
@@ -287,8 +287,39 @@ export function buildCourt(quality = 'high', venueId) {
 export function setNetWindow(court, x, y, radius) {
   const net = court && court.userData.net;
   if (!net) return;
-  net.userData.hole.value.set(x, y, 0);
-  net.userData.holeR.value = radius;
+  net.hole.value.set(x, y, 0);
+  net.holeR.value = radius;
+}
+
+// Feathers a material's alpha out inside a circle in world x/y. Both parts
+// of the net share one pair of uniforms, so they open and close together.
+//
+// alphaTest cannot survive this -- it would clip the feather back into a
+// hard edge -- so anything using it is depth-write-off and drawn late
+// instead, which leaves the depth test to keep a ball in front of the net in
+// front of it.
+function windowable(material, hole, holeR) {
+  material.onBeforeCompile = (shader) => {
+    shader.uniforms.uHole = hole;
+    shader.uniforms.uHoleR = holeR;
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vNetPos;')
+      .replace('#include <begin_vertex>',
+        '#include <begin_vertex>\nvNetPos = (modelMatrix * vec4(position, 1.0)).xyz;');
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>',
+        '#include <common>\nvarying vec3 vNetPos;\nuniform vec3 uHole;\nuniform float uHoleR;')
+      .replace('#include <map_fragment>',
+        `#include <map_fragment>
+        if (uHoleR > 0.0) {
+          // The net is a plane at z = 0, so distance in x and y is the whole
+          // story. Smoothstep from clear at the centre to untouched at the
+          // rim; the inner 45% is fully open, so there is a real window
+          // rather than a dim patch.
+          float d = distance(vNetPos.xy, uHole.xy);
+          diffuseColor.a *= smoothstep(uHoleR * 0.45, uHoleR, d);
+        }`);
+  };
 }
 
 function buildNet(quality) {
@@ -322,47 +353,23 @@ function buildNet(quality) {
   geo.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
   geo.setIndex(idx);
   geo.computeVertexNormals();
-  // The mesh fades out around wherever the cursor is pointing at it, so you
-  // can see the far kitchen through the net you are trying to drop a ball
-  // into. Done in the shader rather than by hiding the whole net: a hard
-  // on/off would be a bigger change to the picture than the thing it is
-  // helping you see.
-  //
-  // alphaTest has to go for this -- it would clip the feather back into a
-  // hard edge -- so the net is depth-write-off and drawn late instead.
+  // The net fades out around wherever the cursor is pointing at it, so you
+  // can see the far kitchen through the thing you are trying to drop a ball
+  // over. Done in the shader rather than by hiding the net: a hard on/off
+  // would be a bigger change to the picture than the thing it is helping you
+  // see.
+  const hole = { value: new THREE.Vector3(0, -99, 0) };
+  const holeR = { value: 0 };
   const netMat = new THREE.MeshStandardMaterial({
     color: 0x1a1d22, map: netTexture(), transparent: true,
     depthWrite: false, side: THREE.DoubleSide, roughness: 0.9,
   });
-  const hole = { value: new THREE.Vector3(0, -99, 0) };
-  const holeR = { value: 0 };
-  netMat.onBeforeCompile = (shader) => {
-    shader.uniforms.uHole = hole;
-    shader.uniforms.uHoleR = holeR;
-    shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nvarying vec3 vNetPos;')
-      .replace('#include <begin_vertex>',
-        '#include <begin_vertex>\nvNetPos = (modelMatrix * vec4(position, 1.0)).xyz;');
-    shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>',
-        '#include <common>\nvarying vec3 vNetPos;\nuniform vec3 uHole;\nuniform float uHoleR;')
-      .replace('#include <map_fragment>',
-        `#include <map_fragment>
-        if (uHoleR > 0.0) {
-          // The net is a plane at z = 0, so distance in x and y is the whole
-          // story. Smoothstep from clear at the centre to untouched at the
-          // rim; the inner 45% is fully open so there is a real window
-          // rather than just a dim patch.
-          float d = distance(vNetPos.xy, uHole.xy);
-          diffuseColor.a *= smoothstep(uHoleR * 0.45, uHoleR, d);
-        }`);
-  };
+  windowable(netMat, hole, holeR);
   const net = new THREE.Mesh(geo, netMat);
   net.renderOrder = 2;
-  net.userData.hole = hole;
-  net.userData.holeR = holeR;
   g.add(net);
-  g.userData.net = net;
+  g.userData.hole = hole;
+  g.userData.holeR = holeR;
 
   // White tape along the top edge, following the same sag.
   const tapePts = [];
@@ -370,11 +377,20 @@ function buildNet(quality) {
     const x = -halfW + (i / SEG) * halfW * 2;
     tapePts.push(new THREE.Vector3(x, netHeightAt(x), 0));
   }
+  // The tape dissolves with the mesh. Leaving it would put a bright white
+  // line straight across the window, which is the one thing you are looking
+  // through it at.
+  const tapeMat = mat(0xf2f5f8, {
+    roughness: 0.6, transparent: true, depthWrite: false,
+  });
+  windowable(tapeMat, hole, holeR);
   const tape = new THREE.Mesh(
     new THREE.TubeGeometry(new THREE.CatmullRomCurve3(tapePts), SEG, 0.028, 6, false),
-    mat(0xf2f5f8, { roughness: 0.6 })
+    tapeMat
   );
-  tape.castShadow = quality === 'high';
+  tape.renderOrder = 2;
+  // A shadow from a rope that is not there would give the window away.
+  tape.castShadow = false;
   g.add(tape);
 
   const postMat = mat(0x232a33, { metalness: 0.55, roughness: 0.42 });
@@ -1008,12 +1024,65 @@ const SCATTER_FORM = {
   reed: { size: [0.55, 0.70], tall: [1.10, 0.90], wide: [0.50, 0.35], lean: 0.26, near: 5, spread: 80 },
 };
 
+// Where a prop can stand and still be seen from the play camera.
+//
+// That camera sits at about (0, 7.5, 14.6) looking down the court on a 38
+// degree lens, so the top of its frame is 12.6 degrees BELOW horizontal. The
+// practical effect is that the further away something is, the lower it has
+// to be to be in shot at all -- and a tall prop is governed by the height of
+// its middle, not its base. Everything here falls out of that one line:
+//
+//     visible while   centreY < 7.5 - (14.6 - z) * tan(12.6 deg)
+//
+// A pond sitting on the ground can therefore be twenty metres out; a pine
+// whose middle is nearly two metres up has to be inside about eleven, or it
+// clips off the top of the frame and is decoration nobody sees. The first
+// version of this ignored the height and put every tree just out of shot.
+const CAM_EYE = 7.5;
+const CAM_Z = 14.6;
+const CAM_TOP_SLOPE = 0.2235;    // tan(12.6 deg), the top edge of the frame
+const CAM_SIDE_SLOPE = 0.62;     // tan of the horizontal half-angle at 16:9
+
+function nearPlacements(rand, count, centreY = 0) {
+  const out = [];
+  // How far out this prop can stand before its middle leaves the frame.
+  const zLimit = CAM_Z - (CAM_EYE - centreY) / CAM_TOP_SLOPE;
+  const zFar = Math.max(-20, Math.min(-6.5, zLimit + 0.5));
+  if (zFar > -6.5) return out;
+
+  const poles = [
+    [APRON_X + 2.6, APRON_Z - 1.5], [-(APRON_X + 2.6), APRON_Z - 1.5],
+    [APRON_X + 2.6, -(APRON_Z - 1.5)], [-(APRON_X + 2.6), -(APRON_Z - 1.5)],
+  ];
+  const clearOfPoles = (x, z) =>
+    poles.every(([px, pz]) => Math.hypot(x - px, z - pz) > 2.8);
+
+  let guard = 0;
+  while (out.length < count * 2 && guard++ < count * 60) {
+    // Flanks: past the side stands, angled into the cone. This is the only
+    // ground the play camera sees that is not court, apron or seating.
+    const z = -6.2 + (zFar + 6.2) * rand();
+    const limit = Math.min(16.5, CAM_SIDE_SLOPE * (CAM_Z - z));
+    if (limit <= 11.2) continue;
+    const x = (11.2 + rand() * (limit - 11.2)) * (rand() < 0.5 ? -1 : 1);
+    if (!clearOfPoles(x, z)) continue;
+    // Mirrored, because which end you stand at depends on which side you
+    // were dealt and both players should get the same view.
+    out.push([x, z]);
+    out.push([x, -z]);
+  }
+  return out;
+}
+
 function buildScatter(rand, scatter) {
   const group = new THREE.Group();
   const kind = scatter.kind;
   if (kind === 'none' || !scatter.count || !SCATTER_SHAPES[kind]) return group;
   const form = SCATTER_FORM[kind];
-  const count = scatter.count;
+  const count = scatter.count + (scatter.near || 0);
+  // Exactly as many instances as the loop below writes. Allocating more
+  // leaves the spares on an identity matrix -- a full-size white prop
+  // standing in the middle of the court.
   const mesh = new THREE.InstancedMesh(
     SCATTER_SHAPES[kind](),
     new THREE.MeshStandardMaterial({ roughness: 1, metalness: 0, flatShading: true }),
@@ -1026,14 +1095,30 @@ function buildScatter(rand, scatter) {
   const scl = new THREE.Vector3();
   const palette = scatter.colors;
 
+  // The first `nearCount` go in the band the play camera can actually see;
+  // the rest ring the horizon as before.
+  // The middle of a typical one of these, which is what decides how far out
+  // it can stand: base scale times the height multiplier, halved.
+  const midY = (form.size[0] + form.size[1] * 0.5)
+    * (form.tall[0] + form.tall[1] * 0.5) * 0.5;
+  const close = scatter.near
+    ? nearPlacements(rand, Math.ceil(scatter.near / 2), midY) : [];
   for (let i = 0; i < count; i++) {
-    // Ring around the court, thinning with distance so the near ground stays
-    // clear and the horizon stays busy.
-    const ang = rand() * Math.PI * 2;
-    // Start well clear of the fence: anything close reads as a boulder from
-    // the play camera and crowds the top of the frame.
-    const dist = FENCE.Z + form.near + Math.pow(rand(), 0.55) * form.spread;
-    pos.set(Math.cos(ang) * dist * 1.05, 0, Math.sin(ang) * dist);
+    let px;
+    let pz;
+    if (i < close.length) {
+      [px, pz] = close[i];
+    } else {
+      // Ring around the court, thinning with distance so the near ground
+      // stays clear and the horizon stays busy.
+      const ang = rand() * Math.PI * 2;
+      // Start well clear of the fence: anything close reads as a boulder
+      // from the play camera and crowds the top of the frame.
+      const dist = FENCE.Z + form.near + Math.pow(rand(), 0.55) * form.spread;
+      px = Math.cos(ang) * dist * 1.05;
+      pz = Math.sin(ang) * dist;
+    }
+    pos.set(px, 0, pz);
     const sz = form.size[0] + rand() * form.size[1];
     scl.set(
       sz * (form.wide[0] + rand() * form.wide[1]),
@@ -1063,9 +1148,19 @@ function buildPonds(v, rand) {
   const water = mat(p.color, { roughness: 0.18, metalness: 0.35 });
   const rim = mat(p.rim, { roughness: 1 });
   const disc = new THREE.CircleGeometry(1, 20);
-  for (let i = 0; i < p.count; i++) {
-    const ang = rand() * Math.PI * 2;
-    const dist = FENCE.Z + 9 + Math.pow(rand(), 0.7) * 58;
+  // Ponds lie flat, so they can sit much further out than anything standing.
+  const close = p.near ? nearPlacements(rand, Math.ceil(p.near / 2), 0) : [];
+  for (let i = 0; i < p.count + (p.near || 0); i++) {
+    let cx;
+    let cz;
+    if (i < close.length) {
+      [cx, cz] = close[i];
+    } else {
+      const ang = rand() * Math.PI * 2;
+      const dist = FENCE.Z + 9 + Math.pow(rand(), 0.7) * 58;
+      cx = Math.cos(ang) * dist * 1.05;
+      cz = Math.sin(ang) * dist;
+    }
     const rx = p.size[0] + rand() * p.size[1];
     const rz = rx * (0.55 + rand() * 0.7);
     // Muddy rim first, water slightly proud of it, so the edge is a bank
@@ -1075,8 +1170,171 @@ function buildPonds(v, rand) {
       mesh.rotation.x = -Math.PI / 2;
       mesh.rotation.z = rand() * Math.PI;
       mesh.scale.set(rx * geoScale, rz * geoScale, 1);
-      mesh.position.set(Math.cos(ang) * dist * 1.05, y, Math.sin(ang) * dist);
+      mesh.position.set(cx, y, cz);
       g.add(mesh);
+    }
+  }
+  return g;
+}
+
+// Championship banners: a year and a name on hanging cloth, the way a club
+// hangs its honours. Drawn rather than modelled -- the text is the point, and
+// canvas is the only way to get it.
+function bannerTexture(year, name, pal) {
+  return canvasTex(128, 256, (g, w, h) => {
+    g.fillStyle = pal.cloth;
+    g.fillRect(0, 0, w, h);
+    // Gold border, inset, the way a pennant is trimmed.
+    g.strokeStyle = pal.trim;
+    g.lineWidth = 5;
+    g.strokeRect(9, 9, w - 18, h - 18);
+
+    g.textAlign = 'center';
+    g.fillStyle = pal.trim;
+    g.font = '700 30px "Trebuchet MS", sans-serif';
+    g.fillText(year, w / 2, 62);
+
+    // A rule under the year, then the champion, wrapped to fit.
+    g.fillRect(w * 0.22, 76, w * 0.56, 3);
+    g.fillStyle = pal.text;
+    const size = name.length > 8 ? 22 : 27;
+    g.font = `700 ${size}px "Trebuchet MS", sans-serif`;
+    g.fillText(name.toUpperCase(), w / 2, 124);
+
+    // A small cup glyph below it, built from arcs rather than a font symbol.
+    g.fillStyle = pal.trim;
+    g.beginPath();
+    g.arc(w / 2, 176, 21, 0, Math.PI);
+    g.fill();
+    g.fillRect(w / 2 - 4, 192, 8, 16);
+    g.fillRect(w / 2 - 17, 206, 34, 7);
+  });
+}
+
+// Hung along the inside of the bowl wall, low enough to be in the play
+// camera's frame -- at that distance it only sees the bottom few metres of
+// the wall, so banners any higher would be decoration nobody sees.
+function buildBanners(v, rand) {
+  const g = new THREE.Group();
+  const pal = v.banners;
+  const inner = Math.max(APRON_X, APRON_Z) + 5.4;
+  const names = pal.champions;
+  const geo = new THREE.PlaneGeometry(1.5, 2.8);
+  let year = pal.firstYear;
+  let i = 0;
+  for (const side of [-1, 1]) {
+    for (let k = 0; k < pal.perSide; k++) {
+      const t = (k + 0.5) / pal.perSide;
+      const name = names[i % names.length];
+      const mesh = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({
+        map: bannerTexture(String(year), name, pal),
+        roughness: 0.92, side: THREE.DoubleSide,
+      }));
+      // Facing in, just proud of the wall so it does not z-fight it.
+      mesh.position.set(
+        (t - 0.5) * inner * 2.0,
+        3.1,
+        side * (inner - 0.42)
+      );
+      mesh.rotation.y = side > 0 ? Math.PI : 0;
+      g.add(mesh);
+      // A pole across the top, which is what makes it read as hung.
+      const rod = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.05, 0.05, 1.7, 6),
+        mat(pal.trimHex, { metalness: 0.4, roughness: 0.4 })
+      );
+      rod.rotation.z = Math.PI / 2;
+      rod.position.set(mesh.position.x, 4.55, mesh.position.z);
+      g.add(rod);
+      year += 1;
+      i += 1;
+    }
+  }
+
+  // And a low honour board across the front of each end stand. The banners
+  // above are rafters-height and the play camera cannot see the bowl wall at
+  // all -- it only frames the bottom couple of metres at that distance -- so
+  // without these the honours would be menu decoration.
+  const boardGeo = new THREE.PlaneGeometry(1.15, 0.86);
+  for (const side of [-1, 1]) {
+    for (let k = 0; k < pal.boardCount; k++) {
+      const t = (k + 0.5) / pal.boardCount;
+      const name = names[(names.length - 1 - k) % names.length];
+      const board = new THREE.Mesh(boardGeo, new THREE.MeshStandardMaterial({
+        map: bannerTexture(String(pal.firstYear + pal.perSide * 2 - 1 - k), name, pal),
+        roughness: 0.9, side: THREE.DoubleSide,
+      }));
+      // On the inside face of the advertising wall. Behind it they were
+      // invisible: that wall is 1.15m of solid board and it hides anything
+      // lower standing further out.
+      board.position.set(
+        (t - 0.5) * APRON_X * 1.9,
+        0.62,
+        side * (FENCE.Z - 0.12)
+      );
+      board.rotation.y = side > 0 ? Math.PI : 0;
+      g.add(board);
+    }
+  }
+  return g;
+}
+
+// A trophy table at two corners of the apron, just outside the boards.
+function buildTrophies(v) {
+  const g = new THREE.Group();
+  const pal = v.trophies;
+  const cloth = mat(pal.cloth, { roughness: 0.95 });
+  const gold = mat(pal.gold, { metalness: 0.55, roughness: 0.3 });
+  const silver = mat(pal.silver, { metalness: 0.6, roughness: 0.28 });
+
+  // One cup, built from a few primitives: bowl, stem, base, handles.
+  const cup = (m, scale) => {
+    const c = new THREE.Group();
+    const bowl = new THREE.Mesh(new THREE.SphereGeometry(
+      0.12, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.62), m);
+    bowl.rotation.x = Math.PI;
+    bowl.position.y = 0.30;
+    c.add(bowl);
+    const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.035, 0.12, 8), m);
+    stem.position.y = 0.16;
+    c.add(stem);
+    const base = new THREE.Mesh(new THREE.CylinderGeometry(0.10, 0.12, 0.05, 10), m);
+    base.position.y = 0.075;
+    c.add(base);
+    for (const sx of [-1, 1]) {
+      const handle = new THREE.Mesh(
+        new THREE.TorusGeometry(0.055, 0.014, 5, 10, Math.PI), m);
+      handle.position.set(sx * 0.12, 0.275, 0);
+      handle.rotation.z = sx * Math.PI * 0.5;
+      c.add(handle);
+    }
+    c.scale.setScalar(scale);
+    c.castShadow = true;
+    return c;
+  };
+
+  for (const sx of [-1, 1]) {
+    for (const sz of [-1, 1]) {
+      const t = new THREE.Group();
+      const top = new THREE.Mesh(new THREE.BoxGeometry(1.8, 0.09, 0.8), cloth);
+      top.position.y = 0.78;
+      top.castShadow = true;
+      t.add(top);
+      // Skirted, so it reads as a draped trestle rather than a floating slab.
+      const skirt = new THREE.Mesh(new THREE.BoxGeometry(1.76, 0.74, 0.76), cloth);
+      skirt.position.y = 0.40;
+      t.add(skirt);
+
+      const sizes = [1.25, 0.95, 1.05];
+      sizes.forEach((sc, i) => {
+        const c = cup(i === 1 ? silver : gold, sc);
+        c.position.set(-0.52 + i * 0.52, 0.82, 0);
+        t.add(c);
+      });
+
+      t.position.set(sx * (APRON_X + 1.7), 0, sz * (APRON_Z + 1.7));
+      t.rotation.y = sx * sz > 0 ? -0.5 : 0.5;
+      g.add(t);
     }
   }
   return g;
@@ -1264,6 +1522,8 @@ export function buildSky(sunDirection, venueId) {
   if (v.ponds) root.add(buildPonds(v, rand));
   if (v.arena) {
     root.add(buildArena(v));
+    if (v.banners) root.add(buildBanners(v, rand));
+    if (v.trophies) root.add(buildTrophies(v));
   }
   if (v.skyline) {
     const city = buildSkyline(v, rand);
