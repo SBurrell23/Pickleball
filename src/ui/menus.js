@@ -95,7 +95,7 @@ const CONTROLS = [
   ['Mouse', 'Aim. The marker on the far court is where the ball will land.'],
   ['Hold Left Click', 'Drive shot. Full power bar — all the pace you can get, but the sweet spot is a long way up.'],
   ['Hold Right Click', 'Dink shot. Half-length bar — sweet spot in half the time, but it can never hit hard.'],
-  ['Release', 'Swing. Stop the marker in the sweet spot.'],
+  ['Release', 'Swing. Stop the marker in the sweet spot. Let the bar fill all the way and it turns red -- release in the red and you have <b>choked</b>: the ball goes into the net or over the baseline, every time.'],
   ['Space', 'Hold during a <b>drive</b> to loop it into a lob instead. Does nothing on a dink — that is already the soft shot.'],
   ['Shift', 'Dash. Costs stamina.'],
   ['Esc', 'Pause.'],

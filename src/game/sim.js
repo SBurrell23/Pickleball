@@ -5,6 +5,11 @@ import { getCharacter } from './characters.js';
 import { netHeightAt, solveToLand, clampSpeed, speedOf } from './ballistics.js';
 import { mulberry32, randDisc } from './rng.js';
 
+// How far past the baseline a choked drive is sent. Comfortably out, but
+// short of the fence, so it lands rather than rebounding into play.
+const CHOKE_LONG_BY = 3.2;
+const CHOKE_LONG_T = 2.4;
+
 // Flight-time envelopes per shot archetype. Power squeezes the flight time
 // toward the minimum, which is what makes a well-timed drive feel fast.
 const FLIGHT = {
@@ -670,8 +675,15 @@ export class Sim {
     const drivingOffKitchen = !beforeBounce && kitchenBounce
       && pend.mode === SWING_MODE.DRIVE;
 
+    // Held the bar into the red. The swing comes through late and out of
+    // shape, and the ball is gone: taken low it is buried in the net, taken
+    // high it is clubbed over the baseline. Which one depends on where the
+    // ball was, so the mistake at least looks like the mistake it was.
+    const choke = !!pend.choke;
+    const chokeLong = choke && from.y >= COURT.NET_H_CENTER + 0.30;
+
     let v;
-    if (drivingOffKitchen) {
+    if (drivingOffKitchen || (choke && !chokeLong)) {
       const NET_T = 0.24;
       const aimY = netHeightAt(from.x) * 0.5;
       v = {
@@ -679,6 +691,15 @@ export class Sim {
         y: (aimY - from.y) / NET_T - 0.5 * BALL.GRAVITY * NET_T,
         z: (0 - from.z) / NET_T,
       };
+    } else if (chokeLong) {
+      // Sent long AND high, so it sails over the far player rather than
+      // handing them a slow sitter to put away -- a choke has to cost the
+      // point, not gift the opponent a free winner off it.
+      v = solveToLand(
+        from,
+        { x: tx * 1.1, z: oppSide * (COURT.HALF_L + CHOKE_LONG_BY) },
+        CHOKE_LONG_T, spin, 1.30, true
+      ).v;
     } else {
       v = solveToLand(from, { x: tx, z: tz }, T, spin, clearance, allowLoft).v;
     }
@@ -707,6 +728,7 @@ export class Sim {
       target: { x: tx, z: tz },
       beforeBounce,
       illegalDrive: drivingOffKitchen,
+      choke,
     });
   }
 

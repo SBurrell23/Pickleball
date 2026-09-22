@@ -149,6 +149,10 @@ export class Hud {
     if (state.showCrosshair) this._drawCrosshair(g, state.mouse);
   }
 
+  // The bad-news colour, exposed so world-space callouts match the meter in
+  // every colourblind mode rather than hardcoding a red nobody can see.
+  get badColor() { return this._palette().bad; }
+
   _palette() {
     const cb = CB_FILTERS[this.settings.get('colorblind')];
     return cb || { good: '#16988a', perfect: '#e4ef3f', bad: '#ef5b4c' };
@@ -272,8 +276,10 @@ export class Hud {
     }
 
     if (sw.t > 1) {
+      // Not a warning any more -- past full the shot is already a fault, so
+      // the bar says so in the same word the callout will use.
       g.fillStyle = pal.bad;
-      g.fillText('OVERCOOKED', x + W / 2, y + H + 22);
+      g.fillText('CHOKE — LET GO EARLIER', x + W / 2, y + H + 22);
     }
   }
 

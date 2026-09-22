@@ -22,7 +22,7 @@ export function lobBonus(apexY) {
 //  DRIVE (left button) -- the full bar. A release inside the band with the bar
 //    near full is the most pace available, so it is a test of nerve as much as
 //    timing: every extra frame held is more power and more risk. Hold past the
-//    end and the swing overcooks into a weak pop-up.
+//    end, into the red, and the shot is gone -- netted or long.
 //
 //  QUICK (right button) -- the same bar at half the length, so its sweet spot
 //    arrives in roughly half the time, but it only ever produces a dink. The
@@ -114,8 +114,14 @@ export function releaseSwing(sw, tuning) {
   let quality;
   let powerFrac;
 
-  if (sw.overcooked) {
-    // Held past the end of the bar: the swing fizzles into a floater.
+  // Past the end of the bar is the red, and the red is a blunder rather than
+  // a soft shot: the swing arrives late and wild, and the ball is going into
+  // the net or over the baseline whatever else is true about it. Note this is
+  // the whole overcharge region, not just the cap -- the bar turns red the
+  // moment it fills, and from there the shot is already lost.
+  const choke = sw.t > 1;
+
+  if (choke) {
     quality = QUALITY.WEAK;
     powerFrac = 0.30;
   } else if (sw.held < SWING.MIN_HOLD) {
@@ -132,6 +138,7 @@ export function releaseSwing(sw, tuning) {
   const result = {
     mode: sw.mode,
     quality,
+    choke,
     powerFrac,
     power: powerFrac * QUALITY_POWER[quality] * tuning.powerScale,
     scatter: QUALITY_SCATTER[quality] * tuning.scatterScale,

@@ -231,6 +231,7 @@ export class Game {
       power: res.power,
       scatter: res.scatter,
       quality: res.quality,
+      choke: res.choke,
       ax: this.aim.x,
       az: this.aim.z,
       rewind: 0,
@@ -478,7 +479,10 @@ export class Game {
           const ch = getCharacter(this.sim.players[e.idx]?.charId);
           this.audio.paddleHit(e.power, e.quality);
           this.fx.hitEffect(e.pos, e.quality, e.power, ch.colors.primary);
-          if (e.illegalDrive) {
+          if (e.choke) {
+            const pl = this.sim.players[e.idx];
+            this.fx.popText('CHOKE!', pl.x, 1.95, pl.z, this.hud.badColor, 60);
+          } else if (e.illegalDrive) {
             const pl = this.sim.players[e.idx];
             this.fx.popText('TOO LOW TO DRIVE', pl.x, 1.8, pl.z, '#ff8a5c', 40);
           } else if (e.quality === 'weak') {

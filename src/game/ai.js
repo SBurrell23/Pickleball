@@ -147,6 +147,22 @@ function volleyIllegal(sim, p) {
     && (sim.ball.shotCount < 3 || sim.inKitchen(p));
 }
 
+// The last point on the bar a bot will ever hold to. Past full is the red and
+// the red is a guaranteed fault, so this is a floor on competence rather than
+// a difficulty knob: even the weakest bot lets go rather than hand the point
+// over. Derived from how far the bar actually travels in a frame instead of
+// being a fixed number -- the quick bar fills in half the time, so it covers
+// twice the ground per tick and has to be released correspondingly earlier.
+function chokeEdge(mode, dt, tune) {
+  const fill = mode === MODE.QUICK ? SWING.QUICK_CHARGE : SWING.CHARGE_TIME;
+  return 1 - (dt / fill) * tune.chargeRate * 1.5;
+}
+
+// Where on the bar a bot is trying to let go.
+function aimPoint(bias, edge) {
+  return Math.min(edge, 0.86 + bias);
+}
+
 function fireSwing(sim, p, st, tune) {
   const res = releaseSwing(st.sw, tune);
   const beforeBounce = sim.ball.bouncesSinceHit === 0;
@@ -157,7 +173,8 @@ function fireSwing(sim, p, st, tune) {
   });
   sim.queueSwing(p.idx, {
     shot, mode: res.mode, power: res.power, scatter: res.scatter,
-    quality: res.quality, ax: st.target.x, az: st.target.z, rewind: 0,
+    quality: res.quality, choke: res.choke,
+    ax: st.target.x, az: st.target.z, rewind: 0,
   });
 }
 
@@ -184,12 +201,13 @@ export function updateBot(sim, p, st, dt) {
       inp.chargeVis = st.sw.t;
       // The serve has no incoming ball to time against, so the bar is
       // everything: release near the sweet band with skill-scaled error.
-      const aim = 0.86 + st.startBias;
-      if (st.sw.t >= aim || st.sw.overcooked) {
+      const aim = aimPoint(st.startBias, chokeEdge(MODE.DRIVE, dt, tune));
+      if (st.sw.t >= aim) {
         const res = releaseSwing(st.sw, tune);
         sim.queueSwing(p.idx, {
           shot: SHOT.SERVE, mode: res.mode, power: res.power, scatter: res.scatter,
-          quality: res.quality, ax: st.target.x, az: st.target.z, rewind: 0,
+          quality: res.quality, choke: res.choke,
+          ax: st.target.x, az: st.target.z, rewind: 0,
         });
         st.committed = true;
       }
@@ -294,17 +312,20 @@ export function updateBot(sim, p, st, dt) {
     inp.charging = true;
     inp.chargeVis = st.sw.t;
 
+    // Never ride the bar into the red. A swing let go early is a bad shot; a
+    // swing held past full is a lost point, so the choice is not close.
+    const atEdge = st.sw.t >= chokeEdge(st.sw.mode, dt, tune);
     if (!arrival) {
       // The read changed -- abandon rather than swing at nothing.
-      if (st.sw.held > 1.3) st.sw.active = false;
+      if (st.sw.held > 1.3 || atEdge) st.sw.active = false;
       return inp;
     }
     if (volleyIllegal(sim, p)) {
       // Hold: contacting the ball right now would hand over the point.
-      if (st.sw.overcooked) st.sw.active = false;
+      if (atEdge) st.sw.active = false;
       return inp;
     }
-    if (arrival.t <= CONTACT_LEAD || st.sw.overcooked) fireSwing(sim, p, st, tune);
+    if (arrival.t <= CONTACT_LEAD || atEdge) fireSwing(sim, p, st, tune);
     return inp;
   }
 
@@ -326,7 +347,7 @@ export function updateBot(sim, p, st, dt) {
 
     // Begin so that the bar reaches the sweet band exactly as the ball arrives.
     // Starting early or late is what costs the bot its timing grade.
-    const aim = 0.86 + st.startBias;
+    const aim = aimPoint(st.startBias, chokeEdge(MODE.DRIVE, dt, tune));
     const driveNeed = (aim * SWING.CHARGE_TIME) / tune.chargeRate + CONTACT_LEAD;
     const quickNeed = (aim * SWING.QUICK_CHARGE) / tune.chargeRate + CONTACT_LEAD;
 
