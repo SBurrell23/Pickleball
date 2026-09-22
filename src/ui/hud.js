@@ -99,7 +99,10 @@ export class Hud {
 
   setNetStats({ ping, fps, showFps, loss, mode }) {
     const bits = [];
-    if (mode && mode !== 'local') {
+    // Only a networked match has a ping worth reporting. Listing the modes
+    // that do, rather than the one that does not, so a mode added later does
+    // not silently start claiming a round trip to nobody.
+    if (mode === 'host' || mode === 'join' || mode === 'client') {
       const cls = ping < 60 ? 'good' : ping < 130 ? 'ok' : 'bad';
       bits.push(`<span class="stat ${cls}">${Math.round(ping)} ms</span>`);
       if (loss > 0.02) bits.push(`<span class="stat bad">${Math.round(loss * 100)}% loss</span>`);

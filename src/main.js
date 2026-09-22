@@ -7,11 +7,34 @@ import { Menus } from './ui/menus.js';
 import { gearIcon } from './ui/icons.js';
 import { Net } from './net/net.js';
 import { Game } from './game/game.js';
-import { CHARACTERS } from './game/characters.js';
 import { createBotState } from './game/ai.js';
+import { ENEMIES, enemyDef, skillFor } from './game/enemies.js';
+import { loadLook, sanitizeRemoteLook, DEFAULT_LOOK, lookIsCustom, allUnlocked }
+  from './game/avatar.js';
+import {
+  activeRun, currentRival, startRun, abandonRun, recordResult,
+  completedDifficulties, DIFFICULTY_NAME,
+} from './game/season.js';
+import { recordMatch, grant } from './game/achievements.js';
 import { buildCourt, buildSky } from './render/assets.js';
 
-const BOT_NAMES = ['Ruby', 'Mako', 'Juno', 'Vale', 'Nix', 'Otto'];
+// What clearing a season on each difficulty hands over. Written out rather
+// than derived so the season-complete screen can name the prizes.
+// Which modes actually have another human on the other end. Asking "is it
+// not local?" was fine when local was the only offline mode; season is one
+// too, and treating it as networked left it unpausable.
+function isOnline(mode) {
+  return mode === 'host' || mode === 'join' || mode === 'client';
+}
+
+const REWARDS = {
+  easy: ['Ball Yellow kit', 'Lime paddle', 'Mohawk'],
+  normal: ['Surf kit', 'Ice paddle', 'Sash shirt', 'Bucket Hat'],
+  hard: ['Ember kit', 'Obsidian paddle', 'Headphones'],
+  extreme: ['Champion Gold kit', 'Champion Gold paddle', 'Champion shirt', 'Crown'],
+};
+
+function rewardsFor(difficulty) { return REWARDS[difficulty] || []; }
 
 class App {
   constructor() {
@@ -37,6 +60,17 @@ class App {
       onBackToLobby: () => this.backToLobby(true),
       onChangeCharacter: (p) => this.changeCharacter(p),
       onLobbyMode: (m) => this.setLobbyMode(m),
+      onSeasonStart: (d) => this.startSeason(d),
+      onSeasonPlay: () => this.playSeasonMatch(),
+      onSeasonQuit: () => this.quitSeason(),
+      onSeasonContinue: () => this.afterSeasonMatch(),
+      onLookSaved: (look) => {
+        // Earned the moment somebody makes the player their own.
+        if (lookIsCustom(look)) {
+          const a = grant('dressed');
+          if (a) this.announce([a]);
+        }
+      },
       onScreen: (s) => this.gear.classList.toggle('on', s === 'settings'),
     });
 
@@ -54,6 +88,13 @@ class App {
       this.toggleSettings();
     });
     this.overlay.appendChild(this.gear);
+
+    // Achievement toasts. Their own rail rather than the HUD's message queue:
+    // an achievement is not an event in the point, and it should not push the
+    // OUT call out of the way.
+    this.toastRail = document.createElement('div');
+    this.toastRail.className = 'toast-rail';
+    this.overlay.appendChild(this.toastRail);
 
     // The court doubles as the menu backdrop, so it lives for the whole
     // session rather than being rebuilt per match.
@@ -89,7 +130,7 @@ class App {
 
     window.addEventListener('blur', () => {
       if (settings.get('muteOnBlur')) this.audio.setMuted(true);
-      if (this.game && !this.menus.visible && this.game.mode === 'local') this.setPaused(true);
+      if (this.game && !this.menus.visible && !isOnline(this.game.mode)) this.setPaused(true);
     });
     window.addEventListener('focus', () => this.audio.setMuted(false));
 
@@ -152,7 +193,7 @@ class App {
     // Online matches keep simulating: pausing a peer-to-peer game would stall
     // the other player, so Esc only opens the menu.
     this.paused = p;
-    const online = this.game.mode !== 'local';
+    const online = isOnline(this.game.mode);
     if (online) this.game.setPaused(false);
     else this.game.setPaused(p);
     this.input.enabled = !p;
@@ -161,6 +202,7 @@ class App {
       this.menus.show('pause', {
         returnTo: 'pause',
         netNote: online ? 'This is an online match, so play continues while this is open.' : '',
+        seasonNote: this.game.mode === 'season',
       });
     } else {
       this.menus.hide();
@@ -171,25 +213,133 @@ class App {
 
   buildRoster(config, humans) {
     const need = config.mode === 'doubles' ? 4 : 2;
-    const level = DIFFICULTY_LEVEL[settings.get('difficulty')] ?? 0.55;
+    const diff = settings.get('difficulty');
+    const level = DIFFICULTY_LEVEL[diff] ?? 0.55;
     const roster = [];
+    // Exhibition bots are rivals off the ladder, taken from the middle of it
+    // and scaled to the chosen difficulty -- the same opponents the season
+    // uses, so an exhibition is a fair rehearsal for one.
+    const pool = ENEMIES.map((_, i) => i).sort(() => Math.random() - 0.5);
+    let picked = 0;
     for (let i = 0; i < need; i++) {
       const h = humans[i];
       if (h) {
         roster.push({
-          id: h.id || 'h' + i, name: h.name || 'Player', charId: h.charId,
+          id: h.id || 'h' + i, name: h.name || 'Player',
+          look: h.look || DEFAULT_LOOK,
           team: i % 2, bot: false, netRec: h.netRec || null,
         });
       } else {
-        const used = new Set(roster.map((r) => r.charId));
-        const pick = CHARACTERS.find((c) => !used.has(c.id)) || CHARACTERS[0];
+        const ladderIndex = pool[picked++ % pool.length];
+        const def = enemyDef(ladderIndex, diff);
         roster.push({
-          id: 'bot' + i, name: BOT_NAMES[i % BOT_NAMES.length], charId: pick.id,
+          id: 'bot' + i, name: def.name, def,
           team: i % 2, bot: true, difficulty: level,
         });
       }
     }
     return roster;
+  }
+
+  // Slides one in, holds it, slides it out. Several at once stack down the
+  // rail rather than replacing each other.
+  toast(title, sub = 'Achievement') {
+    const el = document.createElement('div');
+    el.className = 'toast';
+    el.innerHTML = `<b>★</b><span><em>${sub}</em><strong></strong></span>`;
+    el.querySelector('strong').textContent = title;
+    this.toastRail.appendChild(el);
+    setTimeout(() => {
+      el.classList.add('out');
+      setTimeout(() => el.remove(), 450);
+    }, 3600);
+  }
+
+  announce(earned) {
+    if (!earned || !earned.length) return;
+    // Space them out so three at once is legible rather than a pile.
+    earned.slice(0, 5).forEach((a, i) => {
+      setTimeout(() => this.toast(a.name), i * 550);
+    });
+    this.audio.uiClick();
+  }
+
+  // ---- season ------------------------------------------------------------
+
+  forfeitSeasonMatch() {
+    if (!this.game || this.game.mode !== 'season' || !this.seasonContext) return;
+    const ctx = this.seasonContext;
+    this.seasonContext = null;
+    const out = recordResult(false);
+    if (!out) return;
+    this.hud.message('FORFEIT', 'warn', 2);
+    recordMatch({
+      mode: 'season', matchMode: 'singles', won: false,
+      myScore: 0, theirScore: 0, shots: 0, dinks: 0, drives: 0, lobs: 0,
+      perfects: 0, weak: 0, chokes: 0, accuracy: 0, longestRally: 0,
+      avgRally: 0, maxDeficit: 0, smashWinners: 0, lobWinners: 0, aces: 0,
+      lobPunishes: 0, difficulty: ctx.difficulty, rivalId: ctx.rivalId,
+      livesBefore: ctx.livesBefore, livesAfter: out.lives,
+    });
+  }
+
+
+  startSeason(difficulty) {
+    startRun(difficulty);
+    this.menus.show('season');
+  }
+
+  quitSeason() {
+    abandonRun();
+    this.menus.show('season');
+  }
+
+  playSeasonMatch() {
+    const run = activeRun();
+    if (!run) { this.menus.show('season'); return; }
+    const rival = currentRival(run);
+    this.teardownNet();
+    this.seasonContext = {
+      difficulty: run.difficulty, index: run.index,
+      rivalId: rival.def.id, livesBefore: run.lives,
+    };
+    const me = this.menus.profile();
+    const roster = [
+      { id: 'me', name: me.name, look: me.look, team: 0, bot: false },
+      {
+        id: 'rival', name: rival.def.name, def: rival.def,
+        team: 1, bot: true, difficulty: rival.skill,
+      },
+    ];
+    this.beginMatch('season', { mode: 'singles', seed: (Math.random() * 1e9) | 0 },
+      roster, 0);
+  }
+
+  // Everything that has to happen once a match is in the books, whichever
+  // mode it was: the season ledger, then achievements, then what to show.
+  settleMatch(result) {
+    const summary = result.summary || {};
+    const ctx = this.seasonContext;
+    let outcome = null;
+    if (this.game && this.game.mode === 'season' && ctx) {
+      outcome = recordResult(result.won);
+      summary.difficulty = ctx.difficulty;
+      summary.rivalId = ctx.rivalId;
+      summary.livesBefore = ctx.livesBefore;
+      if (outcome) {
+        summary.livesAfter = outcome.lives;
+        summary.bonusLife = outcome.bonusLife;
+        summary.seasonComplete = outcome.seasonComplete;
+        summary.seasonPerfect = outcome.perfect;
+      }
+      this.seasonContext = null;
+    }
+    const earned = recordMatch(summary);
+    if (allUnlocked(completedDifficulties())) {
+      const a = grant('collector');
+      if (a) earned.push(a);
+    }
+    return { outcome, earned, summary };
   }
 
   // ---- match lifecycle ---------------------------------------------------
@@ -227,20 +377,49 @@ class App {
   }
 
   onMatchFinished(result) {
+    // Settle immediately -- the ledger should not depend on the player
+    // sitting through the celebration -- but show the screen after it.
+    const settled = this.settleMatch(result);
+    this.announce(settled.earned);
     setTimeout(() => {
       if (!this.game) return;
-      const online = this.game.mode !== 'local';
+      const mode = this.game.mode;
+      const online = isOnline(mode);
       this.menus.show('results', {
         won: result.won, score: result.score, stats: result.stats,
         players: result.players,
-        canRematch: !online,
+        earned: settled.earned,
+        season: settled.outcome,
+        canRematch: mode === 'local',
         // Online players should be able to run it back without re-sharing a
         // room code, so the lobby is one click away.
         canLobby: online && !!this.net,
+        canSeason: mode === 'season',
         returnTo: 'results',
       });
       this.input.enabled = false;
     }, 2200);
+  }
+
+  // From the results screen of a season match: either back to the ladder, or
+  // to the screen that says how the run ended.
+  afterSeasonMatch() {
+    const o = this.menus.data.season;
+    this.endMatch();
+    this.paused = false;
+    this.input.enabled = true;
+    if (o && (o.seasonComplete || o.runOver)) {
+      this.menus.show('seasonOver', {
+        seasonComplete: !!o.seasonComplete,
+        seasonPerfect: !!o.perfect,
+        difficulty: o.difficulty,
+        index: o.index,
+        rivalName: o.rival ? o.rival.name : '',
+        rewards: o.seasonComplete ? rewardsFor(o.difficulty) : [],
+      });
+    } else {
+      this.menus.show('season');
+    }
   }
 
   // Drop out of a finished online match and back to the lobby, ready to start
@@ -289,6 +468,10 @@ class App {
   }
 
   quitToMenu() {
+    // Walking out of a season match is a forfeit. Without this, losing badly
+    // and quitting before the last point is a free retry, which makes the
+    // three lives decorative.
+    this.forfeitSeasonMatch();
     this.endMatch();
     this.teardownNet();
     this.paused = false;
@@ -418,10 +601,16 @@ class App {
     if (!this.net || !this.net.isHost) return;
     const peers = this.net.peerList().filter((r) => r.profile);
     const players = [
-      { name: this.hostProfile.name, charId: this.hostProfile.charId, isHost: true, ready: true },
+      {
+        name: this.hostProfile.name,
+        look: this.hostProfile.look,
+        isHost: true, ready: true,
+      },
+      // A peer's look is whatever they say it is: we cannot audit somebody
+      // else's unlocks, only make what they send safe to draw.
       ...peers.map((r) => ({
         name: r.profile.name || 'Player',
-        charId: r.profile.charId || 'volley',
+        look: sanitizeRemoteLook(r.profile.look),
         ready: !!r.ready,
         ping: r.ping.ms,
       })),
@@ -455,17 +644,19 @@ class App {
     const config = { ...this.hostConfig, seed: (Math.random() * 1e9) | 0 };
     const peers = this.net.peerList().filter((r) => r.profile);
     const humans = [
-      { id: 'host', name: this.hostProfile.name, charId: this.hostProfile.charId },
+      { id: 'host', name: this.hostProfile.name, look: this.hostProfile.look },
       ...peers.map((r) => ({
         id: r.id, name: r.profile.name || 'Player',
-        charId: r.profile.charId || 'volley', netRec: r,
+        look: sanitizeRemoteLook(r.profile.look), netRec: r,
       })),
     ];
     const roster = this.buildRoster(config, humans);
 
     // Each client needs to know which slot is theirs.
+    // The whole appearance goes on the wire: with custom players there is no
+    // id the other side could look a character up by.
     const wire = roster.map((r) => ({
-      id: r.id, name: r.name, charId: r.charId, team: r.team,
+      id: r.id, name: r.name, look: r.look, def: r.def, team: r.team,
       bot: r.bot, difficulty: r.difficulty,
     }));
     for (const rec of this.net.peerList()) {

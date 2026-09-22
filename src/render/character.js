@@ -105,6 +105,78 @@ function buildCrest(kind, colors) {
       g.add(band);
       break;
     }
+    case 'beanie': {
+      const dome = new THREE.Mesh(new THREE.SphereGeometry(
+        0.188, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.62), trim);
+      dome.position.y = -0.01;
+      dome.castShadow = true;
+      g.add(dome);
+      const roll = new THREE.Mesh(new THREE.TorusGeometry(0.176, 0.032, 6, 18), prim);
+      roll.position.y = 0.04;
+      roll.rotation.x = Math.PI / 2;
+      g.add(roll);
+      const bobble = new THREE.Mesh(new THREE.SphereGeometry(0.048, 8, 6), prim);
+      bobble.position.y = 0.185;
+      g.add(bobble);
+      break;
+    }
+    case 'bucket': {
+      const dome = new THREE.Mesh(new THREE.SphereGeometry(
+        0.182, 14, 9, 0, Math.PI * 2, 0, Math.PI * 0.46), prim);
+      dome.position.y = 0.02;
+      dome.castShadow = true;
+      g.add(dome);
+      // Brim all the way round, which is what separates it from a cap.
+      const brim = new THREE.Mesh(new THREE.CylinderGeometry(0.30, 0.255, 0.028, 18), trim);
+      brim.position.y = 0.045;
+      g.add(brim);
+      break;
+    }
+    case 'headphones': {
+      const bow = new THREE.Mesh(new THREE.TorusGeometry(
+        0.182, 0.026, 6, 16, Math.PI), trim);
+      bow.position.y = 0.03;
+      bow.rotation.y = Math.PI / 2;
+      g.add(bow);
+      for (const sx of [-1, 1]) {
+        const cup = new THREE.Mesh(new THREE.CylinderGeometry(0.068, 0.068, 0.05, 12), prim);
+        cup.position.set(sx * 0.178, 0.025, 0);
+        cup.rotation.z = Math.PI / 2;
+        g.add(cup);
+      }
+      break;
+    }
+    case 'shades': {
+      // Worn on the brow, not over the eyes -- there is no face to cover.
+      const band = new THREE.Mesh(new THREE.BoxGeometry(0.30, 0.055, 0.035), trim);
+      band.position.set(0, 0.052, 0.152);
+      band.rotation.x = -0.12;
+      g.add(band);
+      for (const sx of [-1, 1]) {
+        const arm = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.03, 0.17), trim);
+        arm.position.set(sx * 0.142, 0.055, 0.06);
+        g.add(arm);
+      }
+      break;
+    }
+    case 'crown': {
+      // Always gold, never the kit colour. It is the Extreme reward, and a
+      // crown that matches your shirt is just a hat.
+      const gold = m(0xd8a52a, false, { roughness: 0.35, metalness: 0.35 });
+      const band = new THREE.Mesh(new THREE.CylinderGeometry(0.152, 0.16, 0.06, 14), gold);
+      band.position.y = 0.135;
+      band.castShadow = true;
+      g.add(band);
+      for (let i = 0; i < 7; i++) {
+        const a = (i / 7) * Math.PI * 2;
+        const spike = new THREE.Mesh(new THREE.ConeGeometry(0.032, 0.085, 4), gold);
+        spike.position.set(Math.cos(a) * 0.148, 0.195, Math.sin(a) * 0.148);
+        g.add(spike);
+      }
+      break;
+    }
+    case 'none':
+      break;
     default: { // visor
       const band = new THREE.Mesh(new THREE.TorusGeometry(0.172, 0.026, 6, 18), prim);
       band.position.y = 0.065;
@@ -151,14 +223,17 @@ function buildPaddle(colors) {
   // rim. Giving them separate materials paints the face in the character's
   // colour on BOTH sides with a trim edge around it -- a stacked slab left the
   // paddle looking black whenever the camera was behind it.
-  const faceMat = m(colors.primary, false, {
-    roughness: 0.5, emissive: new THREE.Color(colors.primary), emissiveIntensity: 0,
+  // The paddle is its own colour when one was chosen, falling back to the kit
+  // so every rival on the ladder looks exactly as it always did.
+  const face = colors.paddle ?? colors.primary;
+  const faceMat = m(face, false, {
+    roughness: 0.5, emissive: new THREE.Color(face), emissiveIntensity: 0,
   });
   const rimMat = m(colors.trim, false, { roughness: 0.6 });
-  const face = new THREE.Mesh(paddleFaceGeo(0.225, 0.295, 0.078, 0.026),
+  const slab = new THREE.Mesh(paddleFaceGeo(0.225, 0.295, 0.078, 0.026),
     [faceMat, rimMat]);
-  face.position.y = 0.21;
-  face.castShadow = true;
+  slab.position.y = 0.21;
+  slab.castShadow = true;
 
   const grip = new THREE.Mesh(
     new THREE.CylinderGeometry(0.026, 0.030, 0.15, 10), m(0x24282e, false));
@@ -168,10 +243,62 @@ function buildPaddle(colors) {
   collarRing.position.y = 0.107;
   collarRing.rotation.x = Math.PI / 2;
 
-  g.add(face, grip, collarRing);
-  g.userData.face = face;
+  g.add(slab, grip, collarRing);
+  g.userData.face = slab;
   g.userData.faceMat = faceMat;
   return g;
+}
+
+// A ring that sits flush on the lathed body at height `y`.
+function hoop(b, y, h, color, grow = 1.02) {
+  const r = radiusAt(b.torso, b.bulk, y) * grow;
+  const mesh = new THREE.Mesh(
+    new THREE.CylinderGeometry(r, r * 1.02, h, 20), m(color, false));
+  mesh.position.y = y;
+  return mesh;
+}
+
+// How the kit colour is laid out on the body. The ids match avatar.js SHIRTS,
+// and anything added there needs a case here and in ui/portrait.js -- an
+// unknown style falls through to the classic band rather than to nothing.
+function shirtPieces(b, c) {
+  switch (b.shirt) {
+    case 'plain':
+      return [];
+    case 'hoops':
+      return [0.30, 0.44, 0.58].map((y) => hoop(b, y, 0.055, c.secondary));
+    case 'panel': {
+      // Upper body in the light tone: a lathe of just the top of the profile
+      // would be ideal, but a tall ring reads the same and costs nothing.
+      return [hoop(b, 0.60, 0.30, c.secondary, 1.015)];
+    }
+    case 'stripe': {
+      const r = radiusAt(b.torso, b.bulk, 0.45);
+      const bar = new THREE.Mesh(
+        new THREE.BoxGeometry(0.085, 0.62, 0.085), m(c.secondary, false));
+      bar.position.set(0, 0.45, r * 0.94);
+      return [bar];
+    }
+    case 'trim':
+      return [hoop(b, 0.16, 0.045, c.secondary), hoop(b, 0.74, 0.045, c.secondary)];
+    case 'sash': {
+      const r = radiusAt(b.torso, b.bulk, 0.45) * 1.03;
+      const sash = new THREE.Mesh(
+        new THREE.CylinderGeometry(r, r, 0.13, 20), m(c.secondary, false));
+      sash.position.y = 0.45;
+      sash.rotation.z = 0.42;                    // worn across one shoulder
+      return [sash];
+    }
+    case 'champion': {
+      const gold = 0xd8a52a;
+      return [
+        hoop(b, 0.30, 0.04, gold), hoop(b, 0.40, 0.11, c.secondary),
+        hoop(b, 0.50, 0.04, gold),
+      ];
+    }
+    default:
+      return [hoop(b, 0.40, 0.14, c.secondary)];
+  }
 }
 
 export function buildCharacter(def) {
@@ -190,15 +317,10 @@ export function buildCharacter(def) {
   shell.castShadow = true;
   body.add(shell);
 
-  // Colour band so the character is identifiable from behind, which is the
-  // angle the play camera almost always sees. Sized to the body's own radius
-  // at that height so it hugs the surface instead of floating off it.
-  const bandY = 0.40;
-  const bandR = radiusAt(b.torso, b.bulk, bandY) * 1.02;
-  const band = new THREE.Mesh(
-    new THREE.CylinderGeometry(bandR, bandR * 1.03, 0.14, 20), m(c.secondary, false));
-  band.position.y = bandY;
-  body.add(band);
+  // Markings so the character is identifiable from behind, which is the angle
+  // the play camera almost always sees. Every ring is sized to the body's own
+  // radius at its height so it hugs the surface instead of floating off it.
+  for (const piece of shirtPieces(b, c)) body.add(piece);
 
   const collarY = 0.82;
   const collarR = radiusAt(b.torso, b.bulk, collarY) * 1.06;

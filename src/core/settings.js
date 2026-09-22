@@ -35,7 +35,6 @@ export const DEFAULTS = {
 
   // Net
   playerName: '',
-  lastCharacter: 'volley',
 };
 
 export const DIFFICULTY_LEVEL = { easy: 0.30, normal: 0.58, hard: 0.86, extreme: 1.0 };

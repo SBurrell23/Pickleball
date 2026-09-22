@@ -1,10 +1,32 @@
-import { CHARACTERS, getCharacter } from '../game/characters.js';
 import { DEFAULTS } from '../core/settings.js';
 import { drawPortrait } from './portrait.js';
 import { CURSOR_STYLES, CURSOR_COLORS, drawReticle } from './reticle.js';
+import {
+  avatarDef, cleanName, optionsFor, findOption, isUnlocked, loadLook, saveLook,
+} from '../game/avatar.js';
+import { cssHex } from '../game/color.js';
+import { seasonLength } from '../game/enemies.js';
+import {
+  DIFFICULTIES, DIFFICULTY_NAME, START_LIVES, MAX_LIVES, bonusAt,
+  ladderFor, completedDifficulties, bestProgress, activeRun, clearCount,
+} from '../game/season.js';
+import {
+  ACHIEVEMENTS, GROUPS, achievementState, unlockedCount,
+} from '../game/achievements.js';
 
 const STAT_LABELS = {
   speed: 'Speed', reach: 'Reach', control: 'Control', drive: 'Drive', dink: 'Dink',
+};
+
+// What a rival's stat bar is measuring, for the scouting card. Your own stats
+// are not shown anywhere: they are the same every match, so there is nothing
+// to read. These describe what the number does TO YOU.
+const STAT_THREAT = {
+  speed: 'Covers the court faster than you do.',
+  reach: 'Digs out wide balls and gets above floaters.',
+  control: 'A scrappy touch still lands where they meant it.',
+  drive: 'A wider sweet spot on the big swing.',
+  dink: 'A wider sweet spot in the kitchen exchange.',
 };
 
 // What each stat actually drives, written against the code rather than the
@@ -112,9 +134,16 @@ export class Menus {
     root.appendChild(this.el);
     this.screen = null;
     this.data = {};
-    this.charIndex = -1;
     this.pendingRoute = 'local';
     this.settingsTab = 'Graphics';
+    this.achieveTab = GROUPS[0];
+    // Portraits are drawn from a full definition now, not an id: a human's
+    // look is chosen rather than looked up. Screens register the defs they
+    // want drawn and reference them by index.
+    this._portraits = [];
+    // Working copy of the look while the editor is open, so backing out of
+    // the editor does not have to undo anything.
+    this.draft = null;
 
     this.el.addEventListener('click', (e) => {
       const b = e.target.closest('[data-act]');
@@ -153,18 +182,15 @@ export class Menus {
 
   // ---- actions -----------------------------------------------------------
 
-  act(act, val) {
+  act(act, val, el) {
     switch (act) {
       case 'nav': this.show(val); break;
       case 'back': this.audio.uiBack(); this.show(val || 'main'); break;
       case 'route':
         this.pendingRoute = val;
-        this.show('char');
-        break;
-      case 'char':
-        this.charIndex = CHARACTERS.findIndex((c) => c.id === val);
-        this.settings.set('lastCharacter', val);
-        this.render();
+        if (val === 'local') this.show('exhibition');
+        else if (val === 'host') this.cb.onHost?.(this.profile(), { mode: 'singles' });
+        else this.show('join');
         break;
       case 'mode':
         this.data.mode = val;
@@ -174,7 +200,29 @@ export class Menus {
         this.settings.set('difficulty', val);
         this.render();
         break;
-      case 'confirmChar': this.confirmChar(); break;
+      case 'playExhibition':
+        this.cb.onStartLocal?.(this.profile(), { mode: this.data.mode || 'singles' });
+        break;
+
+      // ---- player editor --------------------------------------------------
+      case 'editor':
+        this.draft = { ...this.look() };
+        this.show('creator', { returnTo: val || 'main' });
+        break;
+      case 'look': this.editLook(el); break;
+      case 'creatorSave': this.saveDraft(); break;
+      case 'creatorCancel':
+        this.audio.uiBack();
+        this.draft = null;
+        this.show(this.data.returnTo || 'main');
+        break;
+
+      // ---- season ---------------------------------------------------------
+      case 'seasonStart': this.cb.onSeasonStart?.(val); break;
+      case 'seasonPlay': this.cb.onSeasonPlay?.(); break;
+      case 'seasonQuit': this.cb.onSeasonQuit?.(); break;
+
+      case 'achieveTab': this.achieveTab = val; this.render(); break;
       case 'settingsTab': this.settingsTab = val; this.render(); break;
       case 'resetSettings':
         this.settings.reset();
@@ -189,8 +237,8 @@ export class Menus {
       case 'rematch': this.cb.onRematch?.(); break;
       case 'leaveLobby': this.cb.onLeave?.(); this.show('main'); break;
       case 'changeChar':
-        this.pendingRoute = 'lobby';
-        this.show('char');
+        this.draft = { ...this.look() };
+        this.show('creator', { returnTo: 'lobby' });
         break;
       case 'lobbyMode':
         this.data.mode = val;
@@ -198,28 +246,86 @@ export class Menus {
         this.render();
         break;
       case 'toLobby': this.cb.onBackToLobby?.(); break;
+      case 'seasonContinue': this.cb.onSeasonContinue?.(); break;
       default: break;
     }
   }
 
-  confirmChar() {
-    const charId = CHARACTERS[this.charIndex].id;
-    const name = (this.el.querySelector('#playerName')?.value || '').trim().slice(0, 14);
-    if (name) this.settings.set('playerName', name);
-    const profile = { name: name || 'Player', charId };
-    const config = { mode: this.data.mode || 'singles' };
-    if (this.pendingRoute === 'local') this.cb.onStartLocal?.(profile, config);
-    else if (this.pendingRoute === 'host') this.cb.onHost?.(profile, config);
-    else if (this.pendingRoute === 'lobby') this.cb.onChangeCharacter?.(profile);
-    else this.show('join', { profile });
+  /** What gets sent to the other side, and what a local match is built from. */
+  profile() {
+    const look = this.look();
+    return { name: look.name, look };
+  }
+
+  // One swatch or chip click. The draft is edited in place and the screen
+  // re-rendered, so the preview is always the thing that would be saved.
+  editLook(el) {
+    if (!this.draft) this.draft = { ...this.look() };
+    const slot = el?.dataset?.slot;
+    if (slot === 'random') {
+      const completed = completedDifficulties();
+      for (const key of ['shirtColor', 'paddleColor', 'skin', 'shirt', 'accessory']) {
+        const pool = optionsFor(key).filter((o) => isUnlocked(o, completed));
+        this.draft[key] = pool[(Math.random() * pool.length) | 0].id;
+      }
+    } else if (slot) {
+      this.draft[slot] = el.dataset.val;
+    }
+    this.captureName();
+    this.render();
+  }
+
+  // The name input is a live DOM value, so it has to be folded into the draft
+  // before anything re-renders or it is lost on the next swatch click.
+  captureName() {
+    const typed = this.el.querySelector('#playerName');
+    if (typed && this.draft) this.draft.name = cleanName(typed.value);
+  }
+
+  saveDraft() {
+    this.captureName();
+    const saved = this.commitLook(this.draft || {});
+    this.settings.set('playerName', saved.name);
+    this.draft = null;
+    this.cb.onLookSaved?.(saved);
+    const back = this.data.returnTo || 'main';
+    if (back === 'lobby') this.cb.onChangeCharacter?.(this.profile());
+    this.show(back);
+  }
+
+  // ---- exhibition ---------------------------------------------------------
+
+  screen_exhibition() {
+    const mode = this.data.mode || 'singles';
+    const diff = this.settings.get('difficulty');
+    return this.frame('Exhibition', `
+      <p>A single match against the CPU. Nothing is at stake and nothing is
+        unlocked — the season is where the ladder lives.</p>
+      <div class="picker">
+        <span class="picker-label">Match</span>
+        <div class="seg">
+          <button class="${mode === 'singles' ? 'on' : ''}" data-act="mode" data-val="singles">Singles</button>
+          <button class="${mode === 'doubles' ? 'on' : ''}" data-act="mode" data-val="doubles">Doubles</button>
+        </div>
+      </div>
+      <div class="picker">
+        <span class="picker-label">CPU difficulty</span>
+        <div class="seg">
+          ${DIFFICULTIES.map((v) => `<button class="${diff === v ? 'on' : ''}"
+            data-act="difficulty" data-val="${v}">${DIFFICULTY_NAME[v]}</button>`).join('')}
+        </div>
+      </div>
+    `, `
+      <button data-act="back" data-val="main">Back</button>
+      <button data-act="editor" data-val="exhibition">My Player</button>
+      <button class="primary" data-act="playExhibition">Start Match</button>
+    `);
   }
 
   doJoin() {
     const code = (this.el.querySelector('#roomCode')?.value || '').trim().toUpperCase();
     if (!code) { this.setError('Enter the room code the host gave you.'); return; }
-    const charId = CHARACTERS[this.charIndex].id;
-    const name = this.settings.get('playerName') || 'Player';
-    this.cb.onJoin?.(code, { name, charId });
+    this.cb.onJoin?.(code, this.profile());
   }
 
   copyCode() {
@@ -263,6 +369,7 @@ export class Menus {
     const typed = sameScreen
       ? (this.el.querySelector('#playerName') || {}).value : undefined;
 
+    this._portraits = [];
     this.el.innerHTML = fn.call(this);
     this._renderedScreen = this.screen;
 
@@ -316,10 +423,17 @@ export class Menus {
     }
   }
 
+  // Register a definition and return the canvas that will hold its portrait.
+  portrait(def, cls = '') {
+    const i = this._portraits.push(def) - 1;
+    return `<canvas data-portrait="${i}"${cls ? ` class="${cls}"` : ''}></canvas>`;
+  }
+
   afterRender() {
     // Portraits
-    for (const cv of this.el.querySelectorAll('canvas[data-char]')) {
-      const def = getCharacter(cv.dataset.char);
+    for (const cv of this.el.querySelectorAll('canvas[data-portrait]')) {
+      const def = this._portraits[+cv.dataset.portrait];
+      if (!def) continue;
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
       const w = cv.clientWidth || 110, h = cv.clientHeight || 140;
       cv.width = Math.round(w * dpr);
@@ -408,14 +522,23 @@ export class Menus {
       </div>
       <div class="menu-body">
         <div class="menu-grid">
+          <button class="big" data-act="nav" data-val="season">
+            <strong>Season</strong><span>${this.seasonTagline()}</span>
+          </button>
           <button class="big" data-act="route" data-val="local">
-            <strong>Single Player</strong><span>Play the CPU on your own court</span>
+            <strong>Exhibition</strong><span>One match against the CPU</span>
           </button>
           <button class="big" data-act="route" data-val="host">
             <strong>Host Online</strong><span>Create a room and share the code</span>
           </button>
           <button class="big" data-act="route" data-val="join">
             <strong>Join Online</strong><span>Enter a friend's room code</span>
+          </button>
+          <button class="big" data-act="editor" data-val="main">
+            <strong>My Player</strong><span>${escapeHtml(this.look().name)} \u2014 kit, paddle and cap</span>
+          </button>
+          <button class="big" data-act="nav" data-val="achievements">
+            <strong>Achievements</strong><span>${unlockedCount()} of ${ACHIEVEMENTS.length} earned</span>
           </button>
           <button class="big" data-act="nav" data-val="settings">
             <strong>Settings</strong><span>Graphics, audio and feel</span>
@@ -429,105 +552,270 @@ export class Menus {
     </div>`;
   }
 
-  screen_char() {
-    const saved = this.settings.get('lastCharacter');
-    if (this.charIndex < 0) {
-      this.charIndex = Math.max(0, CHARACTERS.findIndex((c) => c.id === saved));
-    }
-    const sel = CHARACTERS[this.charIndex];
-    const mode = this.data.mode || 'singles';
-    const cards = CHARACTERS.map((c, i) => `
-      <div class="char-card ${i === this.charIndex ? 'sel' : ''}" data-act="char" data-val="${c.id}">
-        <canvas data-char="${c.id}"></canvas>
-        <div class="char-name">${c.name}</div>
-        <div class="char-title">${c.title}</div>
-      </div>`).join('');
+  // ---- the player ---------------------------------------------------------
 
-    const stats = Object.entries(sel.stats).map(([k, v]) => {
-      const pctv = Math.max(4, Math.min(100, ((v - 0.86) / 0.50) * 100));
-      const rel = Math.round((v - 1) * 100);
-      const relTxt = rel === 0 ? 'average' : (rel > 0 ? '+' : '') + rel + '%';
-      return `<div class="stat-row" data-tip="${k}" tabindex="0">
-        <span>${STAT_LABELS[k]}</span>
-        <div class="stat-bar"><i style="width:${pctv}%"></i></div>
-        <span class="stat-rel ${rel > 0 ? 'up' : rel < 0 ? 'down' : ''}">${relTxt}</span>
-      </div>`;
+  /** The saved look, kept on `this` so a screen can read it without re-parsing. */
+  look() {
+    if (!this._look) this._look = loadLook(completedDifficulties());
+    return this._look;
+  }
+
+  myDef(look) { return avatarDef(look || this.look()); }
+
+  commitLook(look) {
+    this._look = saveLook(look, completedDifficulties());
+    return this._look;
+  }
+
+  seasonTagline() {
+    const run = activeRun();
+    if (run) {
+      return `Resume — ${DIFFICULTY_NAME[run.difficulty]}, rival `
+        + `${run.index + 1} of ${seasonLength(run.difficulty)}`;
+    }
+    const done = completedDifficulties().length;
+    if (!done) return `Eleven rivals, three lives`;
+    if (done >= DIFFICULTIES.length) return 'All four cleared. Again?';
+    return `${done} of ${DIFFICULTIES.length} difficulties cleared`;
+  }
+
+  // ---- player editor ------------------------------------------------------
+
+  screen_creator() {
+    const d = this.draft || (this.draft = { ...this.look() });
+    const completed = completedDifficulties();
+    const def = avatarDef(d);
+
+    const swatches = (slot) => optionsFor(slot).map((o) => {
+      const on = d[slot] === o.id;
+      const locked = !isUnlocked(o, completed);
+      return `<button class="swatch ${on ? 'on' : ''} ${locked ? 'locked' : ''}"
+        style="--sw:${cssHex(o.hex)}" data-act="look" data-slot="${slot}"
+        data-val="${o.id}" title="${escapeAttr(o.name)}${locked ? ' — locked' : ''}"
+        ${locked ? 'disabled' : ''}><i></i></button>`;
     }).join('');
 
-    // Reached from the lobby, this screen is only for swapping character: the
-    // match type and CPU difficulty belong to whoever set the room up.
-    const inLobby = this.pendingRoute === 'lobby';
-    const routeLabel = this.pendingRoute === 'local' ? 'Start Match'
-      : this.pendingRoute === 'host' ? 'Create Room'
-        : inLobby ? 'Confirm' : 'Continue';
+    const chips = (slot) => optionsFor(slot).map((o) => {
+      const on = d[slot] === o.id;
+      const locked = !isUnlocked(o, completed);
+      return `<button class="chip ${on ? 'on' : ''} ${locked ? 'locked' : ''}"
+        data-act="look" data-slot="${slot}" data-val="${o.id}"
+        ${locked ? 'disabled' : ''}>${escapeHtml(o.name)}${
+        locked ? `<em>${DIFFICULTY_NAME[o.unlock]}</em>` : ''}</button>`;
+    }).join('');
 
-    const diff = this.settings.get('difficulty');
-    const DIFFS = [['easy', 'Easy'], ['normal', 'Normal'], ['hard', 'Hard'],
-      ['extreme', 'Extreme']];
-    const modePicker = (this.pendingRoute === 'join' || inLobby) ? '' : `
-      <div class="picker">
-        <span class="picker-label">Match</span>
-        <div class="seg">
-          <button class="${mode === 'singles' ? 'on' : ''}" data-act="mode" data-val="singles">Singles</button>
-          <button class="${mode === 'doubles' ? 'on' : ''}" data-act="mode" data-val="doubles">Doubles</button>
-        </div>
-      </div>
-      <div class="picker">
-        <span class="picker-label">CPU difficulty</span>
-        <div class="seg">
-          ${DIFFS.map(([v, label]) => `<button class="${diff === v ? 'on' : ''}"
-            data-act="difficulty" data-val="${v}">${label}</button>`).join('')}
-        </div>
-      </div>`;
+    const shirtNote = findOption('shirt', d.shirt).note || '';
+    const lockedLeft = [...optionsFor('shirtColor'), ...optionsFor('paddleColor'),
+      ...optionsFor('shirt'), ...optionsFor('accessory')]
+      .filter((o) => !isUnlocked(o, completed)).length;
 
     return `<div class="menu-panel wide">
-      <div class="menu-head"><h1>Choose your player</h1></div>
-      <div class="menu-body char-layout">
-        <div class="char-grid">${cards}</div>
-        <div class="char-detail">
-          <h2>${sel.name} <small>${sel.title}</small></h2>
-          <p class="blurb">${sel.blurb}</p>
-          ${stats}
-          <p class="fixed-note">${FIXED_NOTE}</p>
+      <div class="menu-head"><h1>My Player</h1></div>
+      <div class="menu-body creator">
+        <div class="creator-preview">
+          ${this.portrait(def, 'big-portrait')}
+          <div class="creator-name">${escapeHtml(d.name)}</div>
+          <p class="muted fine">Everybody plays with the same stats. This is
+            purely how you turn up.</p>
+        </div>
+        <div class="creator-opts">
           <label class="field">
             <span>Name</span>
             <input id="playerName" maxlength="14" placeholder="Player"
-              value="${escapeAttr(inLobby && this.data.myName
-                ? this.data.myName : this.settings.get('playerName'))}">
+              value="${escapeAttr(d.name)}">
           </label>
-          ${modePicker}
+          <div class="opt-row"><span class="opt-label">Kit colour</span>
+            <div class="swatches">${swatches('shirtColor')}</div></div>
+          <div class="opt-row"><span class="opt-label">Paddle</span>
+            <div class="swatches">${swatches('paddleColor')}</div></div>
+          <div class="opt-row"><span class="opt-label">Skin</span>
+            <div class="swatches">${swatches('skin')}</div></div>
+          <div class="opt-row"><span class="opt-label">Shirt</span>
+            <div class="chips">${chips('shirt')}</div></div>
+          <p class="muted fine">${escapeHtml(shirtNote)}</p>
+          <div class="opt-row"><span class="opt-label">Headwear</span>
+            <div class="chips">${chips('accessory')}</div></div>
+          ${lockedLeft ? `<p class="muted fine">${lockedLeft} item${
+            lockedLeft === 1 ? '' : 's'} still locked — clear a season on
+            each difficulty to earn them.</p>` : ''}
         </div>
       </div>
       <div class="menu-foot">
-        <button data-act="back" data-val="${inLobby ? 'lobby' : 'main'}">Back</button>
-        <button class="primary" data-act="confirmChar">${routeLabel}</button>
+        <button data-act="creatorCancel">Cancel</button>
+        <button data-act="look" data-slot="random" data-val="1">Surprise Me</button>
+        <button class="primary" data-act="creatorSave">Save</button>
       </div>
     </div>`;
   }
 
-  screen_join() {
-    return this.frame('Join a room', `
-      <p class="muted">Ask the host for their five-character room code.</p>
-      <label class="field big-field">
-        <span>Room code</span>
-        <input id="roomCode" maxlength="5" autocomplete="off" spellcheck="false"
-          placeholder="ABCDE" style="text-transform:uppercase">
-      </label>
-      <p class="err" id="menuError">${this.data.error || ''}</p>
-      <p class="muted" id="menuStatus">${this.data.status || ''}</p>
-    `, `
-      <button data-act="back" data-val="char">Back</button>
-      <button class="primary" data-act="join">Connect</button>
+  // ---- season -------------------------------------------------------------
+
+  screen_season() {
+    const run = activeRun();
+    if (run) return this.seasonLadder(run);
+
+    const cards = DIFFICULTIES.map((id) => {
+      const done = completedDifficulties().includes(id);
+      const best = bestProgress(id);
+      const clears = clearCount(id);
+      const n = seasonLength(id);
+      return `<button class="big diff-card ${done ? 'done' : ''}"
+        data-act="seasonStart" data-val="${id}">
+        <strong>${DIFFICULTY_NAME[id]}</strong>
+        <span><b>${n} matches</b> &mdash; ${done
+          ? `cleared${clears > 1 ? ` ×${clears}` : ''}`
+          : best ? `best: rival ${best} of ${n}` : 'not yet attempted'}</span>
+      </button>`;
+    }).join('');
+
+    return this.frame('Season', `
+      <p>A ladder of rivals, faced one at a time, each better than the last.
+        Every ladder opens against the warm-up and finishes against the
+        champion &mdash; the harder the season, the more of the roster stands
+        between them.</p>
+      <p>You get <b>${START_LIVES} lives</b>. Lose a match and it costs one and
+        you face the same rival again. Get two thirds of the way up and you are
+        handed a ${MAX_LIVES}th.</p>
+      <p class="muted">Every rival is stronger than you on paper. You are the
+        same player in every match.</p>
+      <div class="menu-grid two">${cards}</div>
+    `, `<button data-act="back" data-val="main">Back</button>`);
+  }
+
+  seasonLadder(run) {
+    const rungs = ladderFor(run.difficulty);
+    const rows = rungs.map((r) => {
+      const state = r.index < run.index ? 'beaten'
+        : r.index === run.index ? 'next' : 'ahead';
+      return `<li class="rung ${state}">
+        <span class="rung-no">${r.index + 1}</span>
+        ${this.portrait(r.def, 'mini')}
+        <span class="rung-name">${escapeHtml(r.def.name)}</span>
+        <span class="rung-title">${escapeHtml(r.def.title)}</span>
+        <span class="rung-state">${state === 'beaten' ? 'Beaten'
+          : state === 'next' ? 'Up next' : ''}</span>
+      </li>`;
+    }).join('');
+
+    return `<div class="menu-panel wide">
+      <div class="menu-head">
+        <h1>Season — ${DIFFICULTY_NAME[run.difficulty]}</h1>
+        <div class="lives" title="${run.lives} of ${MAX_LIVES} lives left">
+          ${Array.from({ length: MAX_LIVES }, (_, i) =>
+            `<i class="${i < run.lives ? 'on' : ''}"></i>`).join('')}
+        </div>
+      </div>
+      <div class="menu-body">
+        <ul class="ladder">${rows}</ul>
+      </div>
+      <div class="menu-foot">
+        <button data-act="seasonQuit">Abandon</button>
+        <button data-act="back" data-val="main">Main Menu</button>
+        <button class="primary" data-act="nav" data-val="scout">
+          Face ${escapeHtml(rungs[run.index].def.name)}</button>
+      </div>
+    </div>`;
+  }
+
+  // The one place stats are shown. Yours never change, so there is nothing to
+  // read there -- but knowing what a rival is dangerous at is the whole point
+  // of a ladder you face one at a time.
+  screen_scout() {
+    const run = activeRun();
+    if (!run) return this.screen_season();
+    const r = ladderFor(run.difficulty)[run.index];
+    const bars = Object.entries(r.def.stats).map(([k, v]) => {
+      const over = Math.round((v - 1) * 100);
+      const pct = Math.max(3, Math.min(100, ((v - 0.9) / 0.5) * 100));
+      const hot = over >= 12;
+      return `<div class="stat-row" title="${escapeAttr(STAT_THREAT[k])}">
+        <span>${STAT_LABELS[k]}</span>
+        <div class="stat-bar ${hot ? 'hot' : ''}"><i style="width:${pct}%"></i></div>
+        <span class="stat-rel ${over > 0 ? 'up' : ''}">${
+          over > 0 ? `+${over}%` : 'even'}</span>
+      </div>`;
+    }).join('');
+    const worst = Object.entries(r.def.stats).sort((a, b) => b[1] - a[1])[0];
+
+    return `<div class="menu-panel wide">
+      <div class="menu-head"><h1>Rival ${run.index + 1} of ${seasonLength(run.difficulty)}</h1>
+        <div class="lives">${Array.from({ length: MAX_LIVES }, (_, i) =>
+          `<i class="${i < run.lives ? 'on' : ''}"></i>`).join('')}</div>
+      </div>
+      <div class="menu-body char-layout">
+        <div class="scout-face">${this.portrait(r.def, 'big-portrait')}</div>
+        <div class="char-detail">
+          <h2>${escapeHtml(r.def.name)} <small>${escapeHtml(r.def.title)}</small></h2>
+          <p class="blurb">${escapeHtml(r.def.blurb)}</p>
+          ${bars}
+          <p class="fixed-note">Watch out for their ${
+            STAT_LABELS[worst[0]].toLowerCase()}. ${STAT_THREAT[worst[0]]}</p>
+        </div>
+      </div>
+      <div class="menu-foot">
+        <button data-act="back" data-val="season">Back</button>
+        <button class="primary" data-act="seasonPlay">Play</button>
+      </div>
+    </div>`;
+  }
+
+  screen_seasonOver() {
+    const d = this.data;
+    const won = !!d.seasonComplete;
+    const body = won
+      ? `<p>You beat all ${seasonLength(d.difficulty)} rivals on
+           <b>${DIFFICULTY_NAME[d.difficulty]}</b>${
+           d.seasonPerfect ? ' without losing a single life' : ''}.</p>
+         ${d.rewards && d.rewards.length ? `<h3>Unlocked</h3>
+           <ul class="reward-list">${d.rewards.map((x) =>
+             `<li>${escapeHtml(x)}</li>`).join('')}</ul>` : ''}`
+      : `<p>Out of lives against <b>${escapeHtml(d.rivalName || 'the ladder')}</b>,
+           rival ${(d.index || 0) + 1} of ${seasonLength(d.difficulty)} on
+           <b>${DIFFICULTY_NAME[d.difficulty]}</b>.</p>
+         <p class="muted">The ladder resets, but what you unlocked stays
+           unlocked.</p>`;
+    return this.frame(won ? 'Season complete' : 'Season over', body, `
+      <button data-act="back" data-val="main">Main Menu</button>
+      <button class="primary" data-act="nav" data-val="season">Season</button>
     `);
+  }
+
+  // ---- achievements -------------------------------------------------------
+
+  screen_achievements() {
+    const st = achievementState();
+    const tabs = GROUPS.map((g) =>
+      `<button class="tab ${g === this.achieveTab ? 'on' : ''}"
+        data-act="achieveTab" data-val="${g}">${g}</button>`).join('');
+    const list = ACHIEVEMENTS.filter((a) => a.group === this.achieveTab);
+    const rows = list.map((a) => {
+      const got = !!st.unlocked[a.id];
+      return `<li class="ach ${got ? 'got' : ''}">
+        <span class="ach-mark">${got ? '✓' : ''}</span>
+        <span class="ach-text"><strong>${escapeHtml(a.name)}</strong>
+          <em>${escapeHtml(a.desc)}</em></span>
+      </li>`;
+    }).join('');
+    const done = unlockedCount();
+    const pct = Math.round((done / ACHIEVEMENTS.length) * 100);
+    return this.frame('Achievements', `
+      <div class="ach-progress">
+        <div class="ach-bar"><i style="width:${pct}%"></i></div>
+        <span>${done} / ${ACHIEVEMENTS.length}</span>
+      </div>
+      <div class="tab-bar">${tabs}</div>
+      <ul class="ach-list">${rows}</ul>
+    `, `<button data-act="back" data-val="main">Back</button>`);
   }
 
   screen_lobby() {
     const d = this.data;
     const players = (d.players || []).map((p) => `
       <li class="${p.ready ? 'ready' : ''}">
-        <canvas data-char="${p.charId}" class="mini"></canvas>
+        ${this.portrait(avatarDef(p.look), 'mini')}
         <span class="pl-name">${escapeHtml(p.name)}</span>
-        <span class="pl-char">${getCharacter(p.charId).name}</span>
+        <span class="pl-char">${escapeHtml(findOption('shirt', p.look?.shirt).name)}
+          ${escapeHtml(findOption('accessory', p.look?.accessory).name)}</span>
         <span class="pl-ping">${p.ping != null ? Math.round(p.ping) + ' ms' : ''}</span>
         <span class="pl-state">${p.isHost ? 'Host' : p.ready ? 'Ready' : 'Waiting'}</span>
       </li>`).join('');
@@ -647,12 +935,15 @@ export class Menus {
   }
 
   screen_pause() {
+    const note = this.data.netNote
+      || (this.data.seasonNote ? 'Quitting a season match forfeits it — it '
+        + 'costs a life, the same as losing.' : '');
     return this.frame('Paused', `
-      <p class="muted">${this.data.netNote || ''}</p>
+      <p class="muted">${note}</p>
     `, `
       <button class="primary" data-act="resume">Resume</button>
       <button data-act="nav" data-val="settings">Settings</button>
-      <button data-act="quit">Quit to menu</button>
+      <button data-act="quit">${this.data.seasonNote ? 'Forfeit' : 'Quit to menu'}</button>
     `);
   }
 
@@ -674,7 +965,7 @@ export class Menus {
         <tbody>${players.map((p) => `
           <tr class="${p.you ? 'me' : ''}${p.won ? ' won' : ''}">
             <th class="who">
-              <canvas data-char="${p.charId}" class="mini"></canvas>
+              ${this.portrait(p.def, 'mini')}
               <span>${escapeHtml(p.name)}</span>
               ${p.you ? '<em>you</em>' : p.bot ? '<em>cpu</em>' : ''}
             </th>
@@ -686,14 +977,30 @@ export class Menus {
       <p class="muted fine">Shots counts every ball struck, serves included.
         Accuracy is all of them averaged &mdash; 100% is perfect timing every
         time.</p>` : '';
+    const sn = d.season;
+    const seasonNote = sn ? `<p class="season-note ${sn.won ? 'good' : 'bad'}">${
+      sn.seasonComplete ? `Season cleared on ${DIFFICULTY_NAME[sn.difficulty]}.`
+        : sn.runOver ? 'Out of lives. The run ends here.'
+          : sn.won ? `${escapeHtml(sn.rival.name)} beaten${
+            sn.bonusLife ? ' — and that is your fourth life' : ''}.`
+            : `${sn.lives} ${sn.lives === 1 ? 'life' : 'lives'} left. Same rival again.`
+    }</p>` : '';
+    const earned = (d.earned || []).length ? `
+      <h3>Achievements earned</h3>
+      <ul class="reward-list">${d.earned.map((a) =>
+        `<li><strong>${escapeHtml(a.name)}</strong> — ${escapeHtml(a.desc)}</li>`
+      ).join('')}</ul>` : '';
     return this.frame(d.won ? 'You win' : 'You lose', `
       <div class="final-score">${d.score ? d.score.join(' - ') : ''}</div>
+      ${seasonNote}
       ${board}
       <table class="controls">${rows}</table>
+      ${earned}
     `, `
-      <button data-act="quit">Menu</button>
+      ${d.canSeason ? '' : '<button data-act="quit">Menu</button>'}
       ${d.canRematch ? '<button class="primary" data-act="rematch">Rematch</button>' : ''}
       ${d.canLobby ? '<button class="primary" data-act="toLobby">Back to Lobby</button>' : ''}
+      ${d.canSeason ? '<button class="primary" data-act="seasonContinue">Continue</button>' : ''}
     `);
   }
 

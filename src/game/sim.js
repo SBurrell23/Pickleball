@@ -1,7 +1,7 @@
 import {
   COURT, BALL, FENCE, PLAY, RULES, SHOT, QUALITY, SWING_MODE,
 } from './constants.js';
-import { getCharacter } from './characters.js';
+import { resolveDef } from './characters.js';
 import { netHeightAt, solveToLand, clampSpeed, speedOf } from './ballistics.js';
 import { mulberry32, randDisc } from './rng.js';
 
@@ -60,12 +60,15 @@ export class Sim {
     this.rallyShots = 0;
 
     this.players = cfg.players.map((p, i) => {
-      const ch = getCharacter(p.charId);
+      const ch = resolveDef(p);
       const team = p.team ?? (i % 2);
       return {
         idx: i,
         id: p.id,
         name: p.name || 'P' + (i + 1),
+        // The resolved definition travels with the player: a human's look is
+        // chosen, not looked up, so an id alone can no longer describe anyone.
+        def: ch,
         charId: ch.id,
         bot: !!p.bot,
         difficulty: p.difficulty ?? 0.6,

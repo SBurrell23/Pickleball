@@ -220,6 +220,258 @@ html, body {
   .gear-btn:hover svg { animation: none; }
 }
 
+
+/* ======================= Player editor ======================= */
+
+.creator { display: grid; grid-template-columns: 220px 1fr; gap: 24px; align-items: start; }
+@media (max-width: 760px) { .creator { grid-template-columns: 1fr; } }
+
+.creator-preview {
+  background: var(--cream-2);
+  border: 3px solid var(--ink);
+  border-radius: var(--radius);
+  padding: 14px 12px 12px;
+  text-align: center;
+  position: sticky;
+  top: 0;
+}
+canvas.big-portrait { width: 100%; height: 190px; display: block; }
+.creator-name {
+  font-weight: 900;
+  font-size: 17px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-top: 4px;
+}
+.creator-opts { display: flex; flex-direction: column; gap: 4px; }
+
+.opt-row { display: flex; align-items: flex-start; gap: 12px; padding: 7px 0; }
+.opt-row + .opt-row { border-top: 2px dashed rgba(16, 32, 44, 0.14); }
+.opt-label {
+  flex: none;
+  width: 92px;
+  padding-top: 5px;
+  font-size: 10.5px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+
+.swatches { display: flex; flex-wrap: wrap; gap: 7px; }
+.swatch {
+  width: 30px; height: 30px;
+  padding: 0;
+  border: 3px solid var(--ink);
+  border-radius: 50%;
+  background: var(--sw);
+  cursor: pointer;
+  position: relative;
+  box-shadow: 0 2px 0 var(--ink);
+  transition: transform 0.12s, box-shadow 0.12s;
+}
+.swatch:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 4px 0 var(--ink); }
+.swatch.on { box-shadow: 0 0 0 3px var(--ball), 0 2px 0 var(--ink); }
+.swatch.on i {
+  position: absolute; inset: 0;
+  border: 3px solid rgba(255, 255, 255, 0.85);
+  border-radius: 50%;
+}
+/* A locked swatch still shows its colour -- you can see what you are playing
+   for -- but it is struck through and cannot be chosen. */
+.swatch.locked { opacity: 0.4; cursor: not-allowed; box-shadow: none; }
+.swatch.locked i {
+  position: absolute; inset: 40% -4px auto;
+  height: 3px;
+  background: var(--ink);
+  transform: rotate(-32deg);
+}
+
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip {
+  padding: 7px 11px;
+  font-size: 12px;
+  font-weight: 800;
+  cursor: pointer;
+}
+.chip.on { background: var(--court); color: var(--line); }
+.chip.on:hover { background: var(--court-dark); }
+.chip.locked { opacity: 0.45; cursor: not-allowed; }
+.chip em {
+  font-style: normal;
+  margin-left: 6px;
+  font-size: 9px;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--flag);
+}
+
+/* ======================= Season ======================= */
+
+.menu-grid.two { grid-template-columns: repeat(2, 1fr); }
+@media (max-width: 560px) { .menu-grid.two { grid-template-columns: 1fr; } }
+.diff-card.done { background: rgba(228, 239, 63, 0.3); }
+.diff-card.done strong::after { content: ' \2714'; color: var(--kitchen-dark); }
+
+/* Lives, as balls in the header. Spent ones stay as empty sockets so the
+   count reads at a glance rather than by counting what is there. */
+.lives { display: flex; gap: 6px; align-items: center; }
+.lives i {
+  width: 15px; height: 15px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.85);
+  background: rgba(255, 255, 255, 0.16);
+}
+.lives i.on { background: var(--ball); box-shadow: 0 0 10px rgba(228, 239, 63, 0.7); }
+
+.ladder { list-style: none; margin: 0; padding: 0; }
+.rung {
+  display: grid;
+  grid-template-columns: 26px 34px 1fr auto auto;
+  align-items: center;
+  gap: 10px;
+  padding: 5px 8px;
+  border-radius: 10px;
+}
+.rung + .rung { border-top: 2px dashed rgba(16, 32, 44, 0.14); }
+.rung canvas.mini { width: 34px; height: 40px; }
+.rung-no {
+  font-weight: 900;
+  font-size: 13px;
+  color: var(--ink-soft);
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.rung-name { font-weight: 900; font-size: 14px; text-transform: uppercase; letter-spacing: 0.02em; }
+.rung-title {
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink-soft);
+}
+.rung-state {
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--kitchen-dark);
+}
+.rung.beaten { opacity: 0.5; }
+.rung.beaten .rung-name { text-decoration: line-through; }
+.rung.next { background: rgba(228, 239, 63, 0.32); box-shadow: inset 0 0 0 2px var(--ink); }
+/* Rivals you have not reached are silhouettes: meeting them should be the
+   first time you see them. */
+.rung.ahead canvas.mini { filter: brightness(0) opacity(0.28); }
+.rung.ahead .rung-name, .rung.ahead .rung-title { color: var(--ink-soft); opacity: 0.6; }
+
+.scout-face {
+  background: var(--cream-2);
+  border: 3px solid var(--ink);
+  border-radius: var(--radius);
+  padding: 12px;
+  display: grid;
+  place-items: center;
+}
+.scout-face canvas { width: 100%; max-width: 230px; height: 250px; }
+.stat-bar.hot i { background: var(--flag); }
+
+.reward-list { margin: 4px 0 10px; padding-left: 20px; }
+.reward-list li { font-size: 13px; font-weight: 700; color: var(--ink-soft); line-height: 1.7; }
+.reward-list strong { color: var(--ink); }
+
+.season-note {
+  text-align: center;
+  font-weight: 900;
+  font-size: 14px !important;
+  letter-spacing: 0.02em;
+  margin: -8px 0 14px !important;
+}
+.season-note.good { color: var(--kitchen-dark); }
+.season-note.bad { color: var(--flag); }
+
+/* ======================= Achievements ======================= */
+
+.ach-progress { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+.ach-bar {
+  flex: 1;
+  height: 14px;
+  border: 3px solid var(--ink);
+  border-radius: 999px;
+  background: rgba(16, 32, 44, 0.12);
+  overflow: hidden;
+}
+.ach-bar i { display: block; height: 100%; background: var(--ball); }
+.ach-progress span { font-weight: 900; font-size: 13px; font-variant-numeric: tabular-nums; }
+
+.ach-list { list-style: none; margin: 0; padding: 0; }
+.ach { display: flex; gap: 11px; align-items: flex-start; padding: 8px 0; }
+.ach + .ach { border-top: 2px dashed rgba(16, 32, 44, 0.14); }
+.ach-mark {
+  flex: none;
+  width: 24px; height: 24px;
+  border: 3px solid var(--ink);
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-weight: 900;
+  font-size: 13px;
+  background: rgba(16, 32, 44, 0.08);
+}
+.ach.got .ach-mark { background: var(--ball); }
+.ach-text { display: flex; flex-direction: column; gap: 1px; }
+.ach-text strong { font-size: 13.5px; font-weight: 900; }
+.ach-text em { font-style: normal; font-size: 12px; color: var(--ink-soft); font-weight: 600; }
+/* Locked entries are legible on purpose: an achievement you cannot read is
+   not a goal, it is a surprise. */
+.ach:not(.got) .ach-text strong { color: var(--ink-soft); }
+
+/* ======================= Achievement toast ======================= */
+
+.toast-rail {
+  position: absolute;
+  top: 70px; right: 18px;
+  z-index: 35;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  pointer-events: none;
+  align-items: flex-end;
+}
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: 300px;
+  background: var(--cream);
+  border: 3px solid var(--ink);
+  border-radius: 999px;
+  padding: 8px 16px 8px 10px;
+  box-shadow: 0 5px 0 var(--ink), 0 12px 24px rgba(8, 24, 36, 0.35);
+  animation: toast-in 0.34s cubic-bezier(.16, 1.5, .4, 1);
+}
+.toast.out { animation: toast-out 0.4s ease forwards; }
+.toast b {
+  flex: none;
+  width: 26px; height: 26px;
+  border-radius: 50%;
+  background: var(--ball);
+  border: 2px solid var(--ink);
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+}
+.toast span { display: flex; flex-direction: column; line-height: 1.25; }
+.toast strong { font-size: 12.5px; font-weight: 900; }
+.toast em { font-style: normal; font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-soft); font-weight: 900; }
+
+@keyframes toast-in { from { opacity: 0; transform: translateX(40px) scale(0.9); } }
+@keyframes toast-out { to { opacity: 0; transform: translateX(40px); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .toast, .toast.out { animation: none; }
+}
+
 /* ============================ Menus ============================ */
 
 .menu-layer {

@@ -1,15 +1,23 @@
-// Round-robin between the six roster characters at equal bot skill, plus a
-// single-stat sensitivity sweep. Answers two questions: is any character
-// dominant, and does each stat measurably change outcomes?
+// What a stat is worth, and whether any rival's kit is out of line.
+//
+// The question this used to answer -- "is any pickable character dominant?"
+// -- no longer exists: the human side is one fixed stat line. What matters
+// now is the other half, which is whether the numbers on the rival roster
+// actually do anything, and whether any single rival is disproportionate for
+// where they sit on the ladder.
 import { Sim, PHASE } from '../src/game/sim.js';
 import { createBotState, updateBot } from '../src/game/ai.js';
-import { CHARACTERS } from '../src/game/characters.js';
+import { DEFAULT_LOOK, PLAYER_STATS } from '../src/game/avatar.js';
+import { ENEMIES } from '../src/game/enemies.js';
 
-function play(seed, charA, charB, d = 0.6) {
-  const sim = new Sim({ mode: 'singles', seed, players: [
-    { id: 'a', charId: charA, team: 0, bot: true },
-    { id: 'b', charId: charB, team: 1, bot: true }]});
-  const bots = sim.players.map(() => createBotState(d));
+const GAMES = Number(process.argv[2] || 14);
+const SKILL = 0.6;
+
+function play(seed, defA, defB) {
+  const sim = new Sim({ mode: 'singles', seed, pointsToWin: 11, players: [
+    { id: 'a', def: defA, look: defA ? undefined : DEFAULT_LOOK, team: 0, bot: true },
+    { id: 'b', def: defB, look: defB ? undefined : DEFAULT_LOOK, team: 1, bot: true }] });
+  const bots = sim.players.map(() => createBotState(SKILL));
   let ticks = 0;
   while (sim.phase !== PHASE.GAMEOVER && ticks < 60 * 60 * 15) {
     const inputs = [];
@@ -21,50 +29,35 @@ function play(seed, charA, charB, d = 0.6) {
   return sim.winner;
 }
 
-// Each pairing is played both ways so the serve advantage cancels out.
-console.log('=== roster round-robin (8 games per ordered pairing) ===');
-const rec = Object.fromEntries(CHARACTERS.map((c) => [c.id, { w: 0, n: 0 }]));
-let seed = 1;
-for (const a of CHARACTERS) {
-  for (const b of CHARACTERS) {
-    if (a.id === b.id) continue;
-    for (let k = 0; k < 8; k++) {
-      const w = play(seed++ * 6151, a.id, b.id);
-      if (w < 0) continue;
-      rec[a.id].n++; rec[b.id].n++;
-      if (w === 0) rec[a.id].w++; else rec[b.id].w++;
-    }
-  }
+// A stand-in built on the human body, so only the stat under test differs.
+function withStats(stats, build = {}) {
+  return {
+    id: 'probe', name: 'Probe', stats,
+    colors: { primary: 0x888888, secondary: 0xcccccc, trim: 0x333333, skin: 0xd8a074 },
+    build: { torso: 'tapered', head: 'round', crest: 'visor', scale: 0.92, bulk: 1, ...build },
+  };
 }
-const rows = CHARACTERS.map((c) => ({
-  id: c.id, pct: rec[c.id].n ? (rec[c.id].w / rec[c.id].n) * 100 : 0, n: rec[c.id].n,
-})).sort((x, y) => y.pct - x.pct);
-for (const r of rows) console.log(`  ${r.id.padEnd(8)} ${r.pct.toFixed(1)}%  (${r.n} games)`);
-const spread = rows[0].pct - rows[rows.length - 1].pct;
-console.log(`  spread: ${spread.toFixed(1)} points between best and worst`);
 
-// Sensitivity: clone the baseline character, move ONE stat, and see whether it
-// beats its unmodified twin. If a stat does nothing, this sits at 50%.
-console.log('\n=== single-stat sensitivity vs an identical twin ===');
-const base = CHARACTERS.find((c) => c.id === 'volley');
-for (const stat of ['speed', 'reach', 'control', 'drive', 'dink']) {
-  for (const mult of [1.25, 0.75]) {
-    const id = `probe_${stat}_${mult}`;
-    CHARACTERS.push({
-      ...base, id,
-      stats: { ...base.stats, [stat]: base.stats[stat] * mult },
-    });
-    // characters.js keys off CHAR_BY_ID, so re-export lookup must see it.
-    const mod = await import('../src/game/characters.js');
-    mod.CHAR_BY_ID[id] = CHARACTERS[CHARACTERS.length - 1];
-    let w = 0, n = 0;
-    for (let k = 0; k < 40; k++) {
-      const win = play(k * 7919 + 13, id, 'volley');
-      if (win < 0) continue;
-      n++; if (win === 0) w++;
-    }
-    console.log(`  ${stat.padEnd(8)} x${mult}  wins ${((w / n) * 100).toFixed(0)}%  (${n} games)`);
-    CHARACTERS.pop();
-    delete mod.CHAR_BY_ID[id];
+console.log(`Single-stat sensitivity vs the human stat line (${GAMES} games each,`
+  + ` both bots at skill ${SKILL}).`);
+console.log('A stat that changes nothing here is a stat that is not worth putting on a rival.\n');
+for (const stat of Object.keys(PLAYER_STATS)) {
+  const line = [];
+  for (const mult of [0.85, 1.15, 1.30]) {
+    const stats = { ...PLAYER_STATS, [stat]: mult };
+    let w = 0;
+    for (let g = 0; g < GAMES; g++) w += play(g * 9176 + 5, withStats(stats), null) === 0 ? 1 : 0;
+    line.push(`${mult.toFixed(2)}x ${String(Math.round((w / GAMES) * 100)).padStart(3)}%`);
   }
+  console.log(`  ${stat.padEnd(8)} ${line.join('   ')}`);
+}
+
+console.log('\nEach rival at full paper strength vs the human stat line.');
+console.log('Ordered as they appear on the ladder; the trend should be upward.\n');
+for (const e of ENEMIES) {
+  let w = 0;
+  for (let g = 0; g < GAMES; g++) w += play(g * 4441 + 7, e, null) === 0 ? 1 : 0;
+  const pct = Math.round((w / GAMES) * 100);
+  const bar = '#'.repeat(Math.round(pct / 5));
+  console.log(`  ${e.name.padEnd(10)} ${String(pct).padStart(3)}%  ${bar}`);
 }
