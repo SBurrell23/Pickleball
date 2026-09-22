@@ -260,11 +260,10 @@ const ids = (list) => list.map((a) => a.id).sort();
   // or a THREE.Color. A typo in one is invisible in node and silently paints
   // something black in the browser -- two of them shipped in the first draft
   // of this table, which is why this check exists.
-  const { VENUES, TIMES, getVenue, getTime } = await import('../src/render/venues.js');
+  const { VENUES, DAYLIGHT, getVenue } = await import('../src/render/venues.js');
   const hex = /^#[0-9a-f]{6}$/i;
   const int = (v) => Number.isInteger(v) && v >= 0 && v <= 0xffffff;
   eq(VENUES.length, 5, 'there are five venues');
-  eq(TIMES.length, 3, 'each has a day, dusk and night');
   const ids = new Set();
   for (const v of VENUES) {
     check(!ids.has(v.id), `duplicate venue id ${v.id}`);
@@ -286,16 +285,14 @@ const ids = (list) => list.map((a) => a.id).sort();
     check(!v.fog || (v.fog[0] > 0 && v.fog[1] > v.fog[0]), `${v.id} fog range is backwards`);
     check(v.stands.crowd >= 0 && v.stands.crowd <= 1, `${v.id} crowd fill is out of range`);
   }
-  for (const t of TIMES) {
-    check(int(t.key.color) && int(t.hemi.sky) && int(t.hemi.ground) && int(t.fill.color),
-      `${t.id} has a non-integer light colour`);
-    check(t.elevation > -1 && t.elevation < 1.6, `${t.id} sun elevation is implausible`);
-    if (t.flood) check(t.flood.intensity > 0, `${t.id} flood is on but has no intensity`);
-  }
-  // Unknown ids fall back rather than exploding, because they arrive from a
-  // peer and from saved settings.
+  check(int(DAYLIGHT.key.color) && int(DAYLIGHT.hemi.sky)
+    && int(DAYLIGHT.hemi.ground) && int(DAYLIGHT.fill.color),
+    'the daylight profile has a non-integer light colour');
+  check(DAYLIGHT.elevation > 0 && DAYLIGHT.elevation < 1.6,
+    'the sun is at an implausible elevation');
+  // An unknown id falls back rather than exploding, because ids arrive from
+  // a peer and from saved settings.
   eq(getVenue('nonsense').id, 'rec', 'an unknown venue falls back to the rec courts');
-  eq(getTime('nonsense').id, 'day', 'an unknown time falls back to day');
 
   // Every rung of every season ladder names a venue that exists, opens on the
   // rec courts and finishes on the championship court.

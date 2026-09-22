@@ -16,9 +16,8 @@ import {
   completedDifficulties, DIFFICULTY_NAME,
 } from './game/season.js';
 import { recordMatch, grant } from './game/achievements.js';
-import { buildCourt, buildSky, animateVenue } from './render/assets.js';
-import { DEFAULT_VENUE, DEFAULT_TIME, randomTimeId, getVenue }
-  from './render/venues.js';
+import { buildCourt, buildSky } from './render/assets.js';
+import { getVenue } from './render/venues.js';
 import { venueForRung } from './game/season.js';
 
 // What clearing a season on each difficulty hands over. Written out rather
@@ -86,7 +85,7 @@ class App {
       onBackToLobby: () => this.backToLobby(true),
       onChangeCharacter: (p) => this.changeCharacter(p),
       onLobbyMode: (m) => this.setLobbyMode(m),
-      onVenue: (v, t) => this.onVenuePicked(v, t),
+      onVenue: (v) => this.onVenuePicked(v),
       onSeasonStart: (d) => this.startSeason(d),
       onSeasonPlay: () => this.playSeasonMatch(),
       onSeasonQuit: () => this.quitSeason(),
@@ -126,7 +125,6 @@ class App {
     // The court doubles as the menu backdrop, so it lives for the whole
     // session rather than being rebuilt per match.
     this.venueId = settings.get('venue');
-    this.timeId = settings.get('timeOfDay');
     this.buildScene();
 
     this.game = null;
@@ -175,35 +173,30 @@ class App {
     this.sky = buildSky(this.view.sunDirection, this.venueId);
     this.view.scene.add(this.sky);
     this.view.setSky(this.sky);
-    this.view.setScene(this.venueId, this.timeId);
+    this.view.setScene(this.venueId);
     if (this.game) this.game.setCourt(this.court);
   }
 
-  /**
-   * Point the session at a venue and a time. A no-op when nothing changed,
-   * because rebuilding the court costs a few hundred milliseconds of texture
-   * work and the lobby calls this on every roster update.
-   */
   // From the picker: change the backdrop immediately so the choice is a
   // preview rather than a promise, and tell the room about it if we host one.
-  onVenuePicked(venueId, timeId) {
-    this.setVenue(venueId, timeId);
+  onVenuePicked(venueId) {
+    this.setVenue(venueId);
     if (this.net && this.net.isHost && this.hostConfig) {
       this.hostConfig.venue = venueId;
-      this.hostConfig.time = timeId;
       this.refreshLobby();
     }
   }
 
-  setVenue(venueId, timeId) {
+  /**
+   * Point the session at a venue. A no-op when nothing changed, because
+   * rebuilding the court costs a few hundred milliseconds of texture work
+   * and the lobby calls this on every roster update.
+   */
+  setVenue(venueId) {
     const v = getVenue(venueId).id;
-    const t = timeId || this.timeId;
-    if (v === this.venueId && t === this.timeId) return;
-    const rebuild = v !== this.venueId;
+    if (v === this.venueId) return;
     this.venueId = v;
-    this.timeId = t;
-    if (rebuild) this.buildScene();
-    else this.view.setScene(this.venueId, this.timeId);
+    this.buildScene();
   }
 
   onSettingChanged(key) {
@@ -371,10 +364,9 @@ class App {
       difficulty: run.difficulty, index: run.index,
       rivalId: rival.def.id, livesBefore: run.lives,
     };
-    // The venue is the ladder's, not the player's: rec courts early, the
-    // championship court for the final, and the time of day drawn at random
-    // so two runs up the same ladder do not look identical.
-    this.setVenue(venueForRung(run.difficulty, run.index), randomTimeId());
+    // The venue is the ladder's, not the player's: rec courts early and
+    // the championship court for the final.
+    this.setVenue(venueForRung(run.difficulty, run.index));
     const me = this.menus.profile();
     const roster = [
       { id: 'me', name: me.name, look: me.look, team: 0, bot: false },
@@ -562,8 +554,7 @@ class App {
   startLocal(profile, config) {
     this.teardownNet();
     const roster = this.buildRoster(config, [{ id: 'me', ...profile }]);
-    this.setVenue(config.venue || settings.get('venue'),
-      config.time || settings.get('timeOfDay'));
+    this.setVenue(config.venue || settings.get('venue'));
     this.beginMatch('local', { ...config, seed: (Math.random() * 1e9) | 0 }, roster, 0);
   }
 
@@ -690,13 +681,12 @@ class App {
       })),
     ];
     const venue = this.hostConfig.venue || settings.get('venue');
-    const time = this.hostConfig.time || settings.get('timeOfDay');
     this.lobby = {
       ...this.lobby, players, isHost: true, mode: this.hostConfig.mode,
-      code: this.net.code, venue, time,
+      code: this.net.code, venue,
     };
     this.net.sendCtrl({
-      t: 'lobby', players, mode: this.hostConfig.mode, code: this.net.code, venue, time,
+      t: 'lobby', players, mode: this.hostConfig.mode, code: this.net.code, venue,
     });
     if (this.menus.screen === 'lobby') this.menus.show('lobby', this.lobby);
   }
@@ -704,11 +694,11 @@ class App {
   onLobbyMessage(msg) {
     this.lobby = {
       ...this.lobby, players: msg.players, mode: msg.mode, code: msg.code,
-      venue: msg.venue, time: msg.time, isHost: false,
+      venue: msg.venue, isHost: false,
     };
     // Show the host's court behind the lobby, so a joiner knows where they
     // are going before the match starts.
-    this.setVenue(msg.venue, msg.time);
+    this.setVenue(msg.venue);
     if (this.menus.screen === 'lobby') this.menus.show('lobby', this.lobby);
   }
 
@@ -725,9 +715,8 @@ class App {
     const config = {
       ...this.hostConfig, seed: (Math.random() * 1e9) | 0,
       venue: this.hostConfig.venue || settings.get('venue'),
-      time: this.hostConfig.time || settings.get('timeOfDay'),
     };
-    this.setVenue(config.venue, config.time);
+    this.setVenue(config.venue);
     const peers = this.net.peerList().filter((r) => r.profile);
     const humans = [
       { id: 'host', name: this.hostProfile.name, look: this.hostProfile.look },
@@ -755,7 +744,7 @@ class App {
 
   onStartMessage(msg) {
     // Everyone plays the same court: the host's pick arrives with the match.
-    this.setVenue(msg.config.venue, msg.config.time);
+    this.setVenue(msg.config.venue);
     this.beginMatch('client', msg.config, msg.roster, msg.yourIdx);
   }
 
@@ -773,7 +762,6 @@ class App {
     this.view.trackFps(dt);
 
     this.view.updateSun(dt);
-    animateVenue(this.sky, dt);
     if (this.net) this.net.tick(dt);
 
     if (this.game) {

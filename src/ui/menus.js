@@ -5,7 +5,7 @@ import {
   avatarDef, cleanName, optionsFor, findOption, isUnlocked, loadLook, saveLook,
 } from '../game/avatar.js';
 import { cssHex } from '../game/color.js';
-import { VENUES, TIMES, getVenue, getTime } from '../render/venues.js';
+import { VENUES, getVenue } from '../render/venues.js';
 import { seasonLength } from '../game/enemies.js';
 import {
   DIFFICULTIES, DIFFICULTY_NAME, START_LIVES, MAX_LIVES, bonusAt,
@@ -203,12 +203,7 @@ export class Menus {
         break;
       case 'venue':
         this.settings.set('venue', val);
-        this.cb.onVenue?.(val, this.settings.get('timeOfDay'));
-        this.render();
-        break;
-      case 'timeOfDay':
-        this.settings.set('timeOfDay', val);
-        this.cb.onVenue?.(this.settings.get('venue'), val);
+        this.cb.onVenue?.(val);
         this.render();
         break;
       case 'playExhibition':
@@ -310,7 +305,7 @@ export class Menus {
   // player are choosing from the same control rather than two that drift.
   // Swatches rather than names alone: a court is a look, and the two colours
   // that matter are the surface and the kitchen.
-  venuePicker(venueId, timeId, disabled = false) {
+  venuePicker(venueId, disabled = false) {
     const cards = VENUES.map((v) => `
       <button class="venue-card ${v.id === venueId ? 'on' : ''}"
         data-act="venue" data-val="${v.id}" ${disabled ? 'disabled' : ''}
@@ -318,17 +313,12 @@ export class Menus {
         <span class="venue-swatch" style="--a:${v.court.surface};--b:${v.kitchen.surface};--c:${v.ground.base}"></span>
         <strong>${escapeHtml(v.name)}</strong>
       </button>`).join('');
-    const times = TIMES.map((t) => `
-      <button class="${t.id === timeId ? 'on' : ''}" data-act="timeOfDay"
-        data-val="${t.id}" ${disabled ? 'disabled' : ''}>${t.name}</button>`).join('');
     return `
-      <div class="opt-row"><span class="opt-label">Court</span>
-        <div class="venues">${cards}</div></div>
-      <p class="muted fine">${escapeHtml(getVenue(venueId).blurb)}</p>
       <div class="picker">
-        <span class="picker-label">Time of day</span>
-        <div class="seg">${times}</div>
-      </div>`;
+        <span class="picker-label">Court</span>
+        <div class="venues">${cards}</div>
+      </div>
+      <p class="muted fine">${escapeHtml(getVenue(venueId).blurb)}</p>`;
   }
 
   // ---- exhibition ---------------------------------------------------------
@@ -353,7 +343,7 @@ export class Menus {
             data-act="difficulty" data-val="${v}">${DIFFICULTY_NAME[v]}</button>`).join('')}
         </div>
       </div>
-      ${this.venuePicker(this.settings.get('venue'), this.settings.get('timeOfDay'))}
+      ${this.venuePicker(this.settings.get('venue'))}
     `, `
       <button data-act="back" data-val="main">Back</button>
       <button data-act="editor" data-val="exhibition">My Player</button>
@@ -907,9 +897,9 @@ export class Menus {
           <button class="${d.mode === 'doubles' ? 'on' : ''}" data-act="lobbyMode" data-val="doubles">Doubles</button>
         </div>
       </div>
-      ${this.venuePicker(d.venue || 'rec', d.time || 'day')}`
-    : `<p class="muted">Court: <b>${escapeHtml(getVenue(d.venue).name)}</b>,
-         ${escapeHtml(getTime(d.time).name.toLowerCase())}. The host picks.</p>`}
+      ${this.venuePicker(d.venue || 'rec')}`
+    : `<p class="muted">Court: <b>${escapeHtml(getVenue(d.venue).name)}</b>.
+         The host picks.</p>`}
       <p class="muted" id="menuStatus">${d.status || ''}</p>
     `, `
       <button data-act="leaveLobby">Leave</button>

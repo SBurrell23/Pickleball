@@ -129,19 +129,19 @@ it rather than the one after.
 
 ## Courts
 
-Five places to play, each with a day, dusk and night mode:
+Five places to play:
 
 | Court | |
 | --- | --- |
 | Rec Play Courts | Municipal blue behind chain-link. Where everybody starts. |
 | Hollow Pines | A clearing somebody paved, dark and close. |
 | Dust Bowl | Terracotta hard court under a bleached sky. |
-| Tidewater | A boardwalk island in open water, reeds to the horizon. |
+| Tidewater | A boardwalk over the reeds, standing pools out in the grass. |
 | Centre Court | Downtown, ringed by towers, every seat sold. |
 
 A venue is pure data in `render/venues.js` — the court paint, the ground, what
 grows outside the fence, the stands, the barrier, the sky — and there is one
-set of builders in `render/assets.js` that reads it. Fifteen hand-built scenes
+set of builders in `render/assets.js` that reads it. Five hand-built scenes
 would drift apart; a new court should be a table entry.
 
 None of it touches the simulation. A court is the same size with the same
@@ -149,26 +149,20 @@ bounce and the same net everywhere, and the barrier a venue draws as
 advertising boards still sits exactly where the chain-link does, because
 `FENCE` is a simulation constant. Only the paint changes.
 
-Time of day pins the sun's elevation and lets only its azimuth drift, so
-shadows still swing round over a long match without the light changing
-character mid-point. At night the sun is below the horizon and a spotlight
-cone over the court does the work — a directional light reaches the horizon,
-which lit the grass as brightly as the court and made midnight look like an
-overcast afternoon.
+All five are played in daylight. There were day, dusk and night modes for a
+while and the two dark ones simply were not good enough to be worth choosing
+between, so they went, and with them a spotlight rig, a lamp switch and a
+settings key. The sun's elevation is a constant again; only its azimuth
+drifts, so shadows still swing round over a long match.
 
-Tidewater floods everything past the apron: the water is a ring rather than
-a plane, which is both cheaper than cutting a hole in one and exactly the
-shape wanted, with a silt bank where it meets the boardwalk and a texture
-that drifts on two axes so the surface moves rather than slides.
-
-Centre Court is downtown, and it is two pieces of scenery rather than one,
-because the play camera looks down the court and can see nothing above
-ground level past about thirty-five metres. The towers are for the menu
-backdrop and the broadcast camera; the bowl wall just behind the stands is
-what you actually play inside. The towers carry a matched pair of textures,
-a facade and an emissive mask of only the lit windows -- using one for both
-made the concrete glow as hard as the glass and turned a night skyline into
-pale slabs.
+Centre Court is two pieces of scenery rather than one, because the play
+camera looks down the court and can see nothing above ground level past
+about thirty-five metres — measured, after the first attempt put a whole
+city where nobody would ever see it. The towers are for the menu backdrop
+and the broadcast camera; the bowl wall just behind the stands is what you
+actually play inside. The towers carry a matched pair of textures, a facade
+and an emissive mask of only the lit windows, because using one for both
+made the concrete glow as hard as the glass.
 
 Only Centre Court is full. A rec court gets the dozen people who happened to
 be passing, which is what a rec court gets.
@@ -176,8 +170,7 @@ be passing, which is what a rec court gets.
 Online, the host picks the court and it travels with the match. In a season
 the ladder picks: every run opens on the rec courts you learned on and
 finishes on the championship court, touring more of the list the longer the
-ladder is, with the time of day drawn at random so two runs up the same
-ladder do not look the same.
+ladder is.
 
 ## Rules
 

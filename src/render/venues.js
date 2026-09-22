@@ -79,17 +79,14 @@ export const VENUES = [
     kitchen: { surface: '#7d6a3e', light: '#9e8a58', dark: '#544425' },
     line: { surface: '#f0f4ee', light: '#ffffff', dark: '#c3cfc4' },
     apron: { base: '#6b5a42', light: '#7d6b50', dark: '#4e4131' },
-    // Silt, not turf: this only shows at the banks, the rest is under water.
     ground: {
-      base: '#3f4a34', blades: ['#55663f', '#333c28', '#68794c'],
-      patches: ['#4a5638', '#2c3424'], bladeCount: 5000,
+      base: '#4a6b4a', blades: ['#6f9a5f', '#3a5a3c', '#84a86a'],
+      patches: ['#5e8557', '#33513a'], bladeCount: 11000,
     },
     scatter: { kind: 'reed', count: 420, colors: [0x6f8a4a, 0x59743d, 0x84a05a, 0x46603a] },
-    // The court is a boardwalk island; everything past the apron is water.
-    water: {
-      deep: '#2b4a4c', shallow: '#3e6f6a', silt: '#4a5a42', glint: '#8fc4b4',
-      bank: 0x4a4432,
-    },
+    // A few standing pools out in the reeds. Not a flood -- just enough that
+    // the ground reads as wet.
+    ponds: { count: 9, color: 0x2f6f8c, rim: 0x4a4a32, size: [3.5, 7] },
     fence: { post: 0x4a4032, mesh: 'rgba(190, 200, 190, 0.8)' },
     stands: { color: 0x5a4c3a, crowd: 0.22 },
     lights: { show: true, pole: 0x3d352a, lamp: 0xfff4d0 },
@@ -133,67 +130,16 @@ export const DEFAULT_VENUE = 'rec';
 
 export function getVenue(id) { return VENUE_BY_ID[id] || VENUE_BY_ID[DEFAULT_VENUE]; }
 
-// ---- time of day -----------------------------------------------------------
+// ---- light -----------------------------------------------------------------
 //
-// The sun's elevation is pinned per mode and only its azimuth drifts, so
-// shadows still swing round over a long match without the light ever changing
-// character mid-point. `skyMix` darkens the venue's own sky toward the mode's
-// own colour rather than replacing it, which is what keeps a desert dusk
-// looking like a desert.
+// One profile. There were three -- day, dusk and night -- and the two dark
+// ones simply did not look good enough to be worth choosing between, so the
+// courts are all played in daylight and the sun's elevation is a constant
+// again. Its azimuth still drifts, so shadows swing round over a long match.
 
-export const TIMES = [
-  {
-    id: 'day',
-    name: 'Day',
-    elevation: 0.95,               // radians above the horizon
-    key: { color: 0xfff6e2, intensity: 2.2 },
-    hemi: { sky: 0xbfe0f2, ground: 0x4a7a44, intensity: 1.05 },
-    fill: { color: 0xbcd9f0, intensity: 0.32 },
-    tint: 0xffffff, skyMix: 0,
-    lamps: false,
-  },
-  {
-    id: 'dusk',
-    name: 'Dusk',
-    elevation: 0.16,
-    key: { color: 0xff9c52, intensity: 2.6 },
-    hemi: { sky: 0xf0a878, ground: 0x3a3048, intensity: 0.78 },
-    fill: { color: 0x6a74b0, intensity: 0.40 },
-    tint: 0xffb98a, skyMix: 0.55,
-    duskSky: { zenith: 0x2b3a6e, horizon: 0xf09a5a },
-    lamps: true,
-    // The lights come on at dusk, as they would. Mostly this is atmosphere,
-    // but on the darker venues it is the difference between a moody court and
-    // one whose lines you cannot read.
-    flood: { color: 0xfff0d8, intensity: 9 },
-  },
-  {
-    id: 'night',
-    name: 'Night',
-    // Below the horizon: what is left is the moon and the floodlights.
-    elevation: -0.22,
-    // Moonlight only, and barely any of it. Anything more and the grass
-    // outside the fence reads as daylight with a blue filter on it.
-    key: { color: 0x9fb6e8, intensity: 0.22 },
-    hemi: { sky: 0x1a2438, ground: 0x0c1118, intensity: 0.20 },
-    fill: { color: 0x5a68a8, intensity: 0.10 },
-    tint: 0x8fa4d8, skyMix: 0.94,
-    duskSky: { zenith: 0x04081a, horizon: 0x101a2e },
-    lamps: true,
-    // The floodlights do the work: a cone over the court so the play area is
-    // bright while everything past the fence falls away into the dark.
-    // Tuned by eye against the night court: below about 12 the lines stop
-    // being readable, above about 30 the grass outside the fence lights up
-    // again and it stops being night.
-    flood: { color: 0xeaf2ff, intensity: 22 },
-  },
-];
-
-export const TIME_BY_ID = Object.fromEntries(TIMES.map((t) => [t.id, t]));
-export const DEFAULT_TIME = 'day';
-
-export function getTime(id) { return TIME_BY_ID[id] || TIME_BY_ID[DEFAULT_TIME]; }
-
-export function randomTimeId() {
-  return TIMES[(Math.random() * TIMES.length) | 0].id;
-}
+export const DAYLIGHT = Object.freeze({
+  elevation: 0.95,               // radians above the horizon
+  key: { color: 0xfff6e2, intensity: 2.2 },
+  hemi: { sky: 0xbfe0f2, ground: 0x4a7a44, intensity: 1.05 },
+  fill: { color: 0xbcd9f0, intensity: 0.32 },
+});

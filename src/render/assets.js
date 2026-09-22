@@ -815,12 +815,9 @@ function buildLights(quality, v) {
   const g = new THREE.Group();
   g.name = 'floodlights';
   const poleMat = mat(v.lights.pole, { metalness: 0.5, roughness: 0.5 });
-  // Kept on userData so the time of day can switch the lamps on without
-  // hunting through the scene graph for them.
   const lampMat = mat(v.lights.lamp, {
     emissive: v.lights.lamp, emissiveIntensity: 1.4, roughness: 0.3,
   });
-  g.userData.lampMat = lampMat;
   for (const sx of [-1, 1]) {
     for (const sz of [-1, 1]) {
       const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.13, 8, 8), poleMat);
@@ -1009,69 +1006,31 @@ function buildScatter(rand, scatter) {
   return group;
 }
 
-// Open water, as a ring around the court rather than a full plane: the
-// boardwalk the court sits on stays dry land, and everything past it floods.
-// A ring is also a lot cheaper than cutting a hole in a plane.
-function waterTexture(pal) {
-  return canvasTex(512, 512, (g, w, h) => {
-    g.fillStyle = pal.deep;
-    g.fillRect(0, 0, w, h);
-    // Broad slicks of lighter water, so the surface is not one flat colour.
-    for (let i = 0; i < 40; i++) {
-      g.globalAlpha = 0.05 + Math.random() * 0.1;
-      g.fillStyle = Math.random() < 0.5 ? pal.shallow : pal.silt;
-      g.beginPath();
-      g.ellipse(Math.random() * w, Math.random() * h,
-        50 + Math.random() * 150, 20 + Math.random() * 60, Math.random() * 3, 0, Math.PI * 2);
-      g.fill();
-    }
-    // Ripple lines. Horizontal and long, so scrolling them reads as a drift
-    // across the surface rather than as a texture sliding.
-    g.lineCap = 'round';
-    for (let i = 0; i < 900; i++) {
-      const y = Math.random() * h;
-      const x = Math.random() * w;
-      const len = 14 + Math.random() * 46;
-      g.globalAlpha = 0.10 + Math.random() * 0.3;
-      g.strokeStyle = Math.random() < 0.6 ? pal.glint : pal.shallow;
-      g.lineWidth = 1 + Math.random() * 1.8;
-      g.beginPath();
-      g.moveTo(x, y);
-      g.quadraticCurveTo(x + len * 0.5, y - 2 - Math.random() * 3, x + len, y);
-      g.stroke();
-    }
-    g.globalAlpha = 1;
-  }, [36, 36]);
-}
-
-function buildWater(v) {
+// A handful of standing pools out in the grass. Flat discs sitting just
+// above the ground plane rather than anything modelled: at this distance a
+// pond is a shape and a colour, and the venue only wants a few.
+function buildPonds(v, rand) {
   const g = new THREE.Group();
-  const pal = v.water;
-  const tex = waterTexture(pal);
-  const mat2 = new THREE.MeshStandardMaterial({
-    color: 0xffffff, map: tex, transparent: true, opacity: 0.93,
-    roughness: 0.16, metalness: 0.32,
-  });
-  // Starts just outside the apron so the boardwalk reads as an island, and
-  // runs past the fog distance so its far edge is never seen.
-  const ring = new THREE.Mesh(
-    new THREE.RingGeometry(Math.max(APRON_X, APRON_Z) + 1.6, 900, 96, 1), mat2);
-  ring.rotation.x = -Math.PI / 2;
-  ring.position.y = -0.12;
-  g.add(ring);
-
-  // A muddy bank where the water meets the boardwalk, so the edge is not a
-  // hard line between paving and open water.
-  const bank = new THREE.Mesh(
-    new THREE.RingGeometry(Math.max(APRON_X, APRON_Z) + 0.2,
-      Math.max(APRON_X, APRON_Z) + 3.4, 64, 1),
-    mat(pal.bank, { roughness: 1 })
-  );
-  bank.rotation.x = -Math.PI / 2;
-  bank.position.y = -0.17;
-  g.add(bank);
-
-  g.userData.water = tex;
+  const p = v.ponds;
+  const water = mat(p.color, { roughness: 0.18, metalness: 0.35 });
+  const rim = mat(p.rim, { roughness: 1 });
+  const disc = new THREE.CircleGeometry(1, 20);
+  for (let i = 0; i < p.count; i++) {
+    const ang = rand() * Math.PI * 2;
+    const dist = FENCE.Z + 9 + Math.pow(rand(), 0.7) * 58;
+    const rx = p.size[0] + rand() * p.size[1];
+    const rz = rx * (0.55 + rand() * 0.7);
+    // Muddy rim first, water slightly proud of it, so the edge is a bank
+    // rather than a cut-out.
+    for (const [geoScale, m, y] of [[1.18, rim, -0.205], [1, water, -0.19]]) {
+      const mesh = new THREE.Mesh(disc, m);
+      mesh.rotation.x = -Math.PI / 2;
+      mesh.rotation.z = rand() * Math.PI;
+      mesh.scale.set(rx * geoScale, rz * geoScale, 1);
+      mesh.position.set(Math.cos(ang) * dist * 1.05, y, Math.sin(ang) * dist);
+      g.add(mesh);
+    }
+  }
   return g;
 }
 
@@ -1107,7 +1066,6 @@ function buildArena(v) {
     band.position.set(r.x, H - 1.1, r.z);
     g.add(band);
   }
-  g.userData.fascia = fascia;
   return g;
 }
 
@@ -1207,18 +1165,6 @@ function buildCloud(rand) {
   return g;
 }
 
-/**
- * Per-frame life in the scenery. Only the water moves, and only on the venue
- * that has any -- everywhere else this is two property reads.
- */
-export function animateVenue(sky, dt) {
-  const tex = sky && sky.userData.water;
-  if (!tex) return;
-  // Two axes at different rates so the surface drifts rather than slides.
-  tex.offset.x = (tex.offset.x + dt * 0.013) % 1;
-  tex.offset.y = (tex.offset.y + dt * 0.031) % 1;
-}
-
 // Sky dome, sun, clouds and the ground the court sits on. Everything here is
 // far away and unlit by the court lights, so it is cheap.
 export function buildSky(sunDirection, venueId) {
@@ -1267,18 +1213,9 @@ export function buildSky(sunDirection, venueId) {
   root.add(ground);
 
   const rand = mulberry32(90210);
-  if (v.water) {
-    const water = buildWater(v);
-    root.add(water);
-    root.userData.water = water.userData.water;
-    // The ground under a flooded venue is silt, and it only shows at the
-    // banks, so it is pushed down out of the way of the water surface.
-    ground.position.y = -0.30;
-  }
+  if (v.ponds) root.add(buildPonds(v, rand));
   if (v.arena) {
-    const bowl = buildArena(v);
-    root.add(bowl);
-    root.userData.fascia = bowl.userData.fascia;
+    root.add(buildArena(v));
   }
   if (v.skyline) {
     const city = buildSkyline(v, rand);
