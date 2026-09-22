@@ -25,7 +25,8 @@ export const VENUES = [
     },
     scatter: { kind: 'shrub', count: 340, colors: [0x3f8f3a, 0x4fa348, 0x336f30, 0x5cb054, 0x2d6b2f] },
     fence: { post: 0x2f3a42, mesh: 'rgba(206, 218, 224, 0.95)' },
-    stands: { color: 0x404a55, crowd: 1 },
+    // Rec play: a few people who happened to be passing, not a crowd.
+    stands: { color: 0x404a55, crowd: 0.13 },
     lights: { show: true, pole: 0x2b333c, lamp: 0xfff6d8 },
     sky: { zenith: 0x2f7fd0, horizon: 0xbfe0f2 },
     clouds: 11,
@@ -44,7 +45,7 @@ export const VENUES = [
     },
     scatter: { kind: 'pine', count: 260, colors: [0x24422a, 0x1b3320, 0x2e5233, 0x152a1a] },
     fence: { post: 0x23282a, mesh: 'rgba(150, 165, 160, 0.75)' },
-    stands: { color: 0x2a2f2c, crowd: 0.35 },
+    stands: { color: 0x2a2f2c, crowd: 0.16 },
     lights: { show: true, pole: 0x1d2220, lamp: 0xd8ffc8 },
     sky: { zenith: 0x1d3347, horizon: 0x6f8a84 },
     clouds: 5,
@@ -64,7 +65,7 @@ export const VENUES = [
     },
     scatter: { kind: 'cactus', count: 200, colors: [0x5f8a4a, 0x4c7040, 0x6f9a55, 0x8a7a52] },
     fence: { post: 0x6a5a48, mesh: 'rgba(222, 208, 180, 0.9)' },
-    stands: { color: 0x7a6650, crowd: 0.6 },
+    stands: { color: 0x7a6650, crowd: 0.26 },
     lights: { show: true, pole: 0x5a4c3c, lamp: 0xfff0c8 },
     sky: { zenith: 0x3f8ecb, horizon: 0xe8d4a8 },
     clouds: 3,
@@ -78,13 +79,19 @@ export const VENUES = [
     kitchen: { surface: '#7d6a3e', light: '#9e8a58', dark: '#544425' },
     line: { surface: '#f0f4ee', light: '#ffffff', dark: '#c3cfc4' },
     apron: { base: '#6b5a42', light: '#7d6b50', dark: '#4e4131' },
+    // Silt, not turf: this only shows at the banks, the rest is under water.
     ground: {
-      base: '#4a6b4a', blades: ['#6f9a5f', '#3a5a3c', '#84a86a'],
-      patches: ['#5e8557', '#33513a'], bladeCount: 11000,
+      base: '#3f4a34', blades: ['#55663f', '#333c28', '#68794c'],
+      patches: ['#4a5638', '#2c3424'], bladeCount: 5000,
     },
     scatter: { kind: 'reed', count: 420, colors: [0x6f8a4a, 0x59743d, 0x84a05a, 0x46603a] },
+    // The court is a boardwalk island; everything past the apron is water.
+    water: {
+      deep: '#2b4a4c', shallow: '#3e6f6a', silt: '#4a5a42', glint: '#8fc4b4',
+      bank: 0x4a4432,
+    },
     fence: { post: 0x4a4032, mesh: 'rgba(190, 200, 190, 0.8)' },
-    stands: { color: 0x5a4c3a, crowd: 0.5 },
+    stands: { color: 0x5a4c3a, crowd: 0.22 },
     lights: { show: true, pole: 0x3d352a, lamp: 0xfff4d0 },
     sky: { zenith: 0x3a80a8, horizon: 0xc2d8cf },
     clouds: 14,
@@ -103,10 +110,19 @@ export const VENUES = [
       patches: ['#354061', '#1e2538'], bladeCount: 1200,
     },
     scatter: { kind: 'none', count: 0, colors: [0x2a3450] },
+    // Downtown. The windows light up after dark, which is most of what makes
+    // the night version of this court worth playing on.
+    skyline: {
+      wall: '#6d7691', dark: '#39415c', lit: '#eaf2ff', litWarm: '#ffd9a0',
+    },
+    // The bowl wall just behind the stands -- the only piece of this venue
+    // the play camera is close enough to see.
+    arena: { wall: 0x1c2438, fascia: 0x3f63b8 },
     fence: { style: 'wall', post: 0x1b2440, mesh: 'rgba(150,170,200,0.5)' },
+    // The one court that is genuinely sold out.
     stands: { color: 0x232c44, crowd: 1, tall: true },
     lights: { show: true, pole: 0x1a2134, lamp: 0xffffff },
-    sky: { zenith: 0x14224a, horizon: 0x4a6a9c },
+    sky: { zenith: 0x2c5290, horizon: 0x9db6cf },
     clouds: 0,
     fog: [140, 600],
   },

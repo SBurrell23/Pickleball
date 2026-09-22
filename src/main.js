@@ -16,7 +16,7 @@ import {
   completedDifficulties, DIFFICULTY_NAME,
 } from './game/season.js';
 import { recordMatch, grant } from './game/achievements.js';
-import { buildCourt, buildSky } from './render/assets.js';
+import { buildCourt, buildSky, animateVenue } from './render/assets.js';
 import { DEFAULT_VENUE, DEFAULT_TIME, randomTimeId, getVenue }
   from './render/venues.js';
 import { venueForRung } from './game/season.js';
@@ -43,11 +43,20 @@ function rewardsFor(difficulty) { return REWARDS[difficulty] || []; }
 // canvas textures. Without this, switching courts a few times in a session
 // leaks every one of them -- the same mistake the effects system made.
 function disposeTree(root) {
+  const seen = new Set();
   root.traverse((o) => {
     if (o.geometry) o.geometry.dispose();
     const mats = Array.isArray(o.material) ? o.material : (o.material ? [o.material] : []);
     for (const m of mats) {
-      for (const k of ['map', 'alphaMap', 'normalMap', 'roughnessMap']) m[k]?.dispose?.();
+      if (seen.has(m)) continue;
+      seen.add(m);
+      // Walk every property rather than a list of the ones we remembered:
+      // the named list missed emissiveMap the moment the skyline added one,
+      // and the leak only shows up after switching venues a few times.
+      for (const key of Object.keys(m)) {
+        const val = m[key];
+        if (val && val.isTexture) val.dispose();
+      }
       m.dispose();
     }
   });
@@ -764,6 +773,7 @@ class App {
     this.view.trackFps(dt);
 
     this.view.updateSun(dt);
+    animateVenue(this.sky, dt);
     if (this.net) this.net.tick(dt);
 
     if (this.game) {

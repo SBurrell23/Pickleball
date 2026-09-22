@@ -299,6 +299,7 @@ export class View {
     this.scene.background.copy(this._skyBottom);
 
     this.setLamps(!!t.lamps);
+    this.setWindows(t.id);
     this.updateSun(0);
   }
 
@@ -308,6 +309,15 @@ export class View {
     const court = this.scene.getObjectByName('floodlights');
     const m = court && court.userData.lampMat;
     if (m) m.emissiveIntensity = on ? 1.9 : 0.05;
+  }
+
+  // Office windows. Barely on in daylight, half lit at dusk, and the reason
+  // to play the night version of the downtown court.
+  setWindows(timeId) {
+    const mats = this.sky && this.sky.userData.windowMats;
+    if (!mats) return;
+    const lit = timeId === 'night' ? 1.35 : timeId === 'dusk' ? 0.55 : 0.06;
+    for (const m of mats) m.emissiveIntensity = lit;
   }
 
   // Walk the sun around its arc and keep the key light and the sky's sun disc

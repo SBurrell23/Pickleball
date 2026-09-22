@@ -136,8 +136,8 @@ Five places to play, each with a day, dusk and night mode:
 | Rec Play Courts | Municipal blue behind chain-link. Where everybody starts. |
 | Hollow Pines | A clearing somebody paved, dark and close. |
 | Dust Bowl | Terracotta hard court under a bleached sky. |
-| Tidewater | Teal over the reeds, low cloud, full of birds. |
-| Centre Court | Deep blue, advertising boards, every seat sold. |
+| Tidewater | A boardwalk island in open water, reeds to the horizon. |
+| Centre Court | Downtown, ringed by towers, every seat sold. |
 
 A venue is pure data in `render/venues.js` — the court paint, the ground, what
 grows outside the fence, the stands, the barrier, the sky — and there is one
@@ -155,6 +155,23 @@ character mid-point. At night the sun is below the horizon and a spotlight
 cone over the court does the work — a directional light reaches the horizon,
 which lit the grass as brightly as the court and made midnight look like an
 overcast afternoon.
+
+Tidewater floods everything past the apron: the water is a ring rather than
+a plane, which is both cheaper than cutting a hole in one and exactly the
+shape wanted, with a silt bank where it meets the boardwalk and a texture
+that drifts on two axes so the surface moves rather than slides.
+
+Centre Court is downtown, and it is two pieces of scenery rather than one,
+because the play camera looks down the court and can see nothing above
+ground level past about thirty-five metres. The towers are for the menu
+backdrop and the broadcast camera; the bowl wall just behind the stands is
+what you actually play inside. The towers carry a matched pair of textures,
+a facade and an emissive mask of only the lit windows -- using one for both
+made the concrete glow as hard as the glass and turned a night skyline into
+pale slabs.
+
+Only Centre Court is full. A rec court gets the dozen people who happened to
+be passing, which is what a rec court gets.
 
 Online, the host picks the court and it travels with the match. In a season
 the ladder picks: every run opens on the rec courts you learned on and

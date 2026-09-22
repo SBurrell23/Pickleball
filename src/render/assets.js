@@ -449,8 +449,13 @@ function buildFence(quality, v) {
     { x: FENCE.X, z: 0, len: FENCE.Z * 2, rotY: Math.PI / 2 },
   ];
 
+  // The first run takes the original rather than a fifth clone: an unused
+  // original is a texture nothing ever disposes, because disposal walks the
+  // materials in the scene and it is not attached to one.
+  let first = true;
   for (const run of runs) {
-    const tex = meshTex.clone();
+    const tex = first ? meshTex : meshTex.clone();
+    first = false;
     tex.needsUpdate = true;
     tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
     tex.repeat.set(run.len / 0.34, H / 0.34);
@@ -1004,7 +1009,186 @@ function buildScatter(rand, scatter) {
   return group;
 }
 
-// Cartoon cloud:// Cartoon cloud: a handful of overlapping squashed spheres.
+// Open water, as a ring around the court rather than a full plane: the
+// boardwalk the court sits on stays dry land, and everything past it floods.
+// A ring is also a lot cheaper than cutting a hole in a plane.
+function waterTexture(pal) {
+  return canvasTex(512, 512, (g, w, h) => {
+    g.fillStyle = pal.deep;
+    g.fillRect(0, 0, w, h);
+    // Broad slicks of lighter water, so the surface is not one flat colour.
+    for (let i = 0; i < 40; i++) {
+      g.globalAlpha = 0.05 + Math.random() * 0.1;
+      g.fillStyle = Math.random() < 0.5 ? pal.shallow : pal.silt;
+      g.beginPath();
+      g.ellipse(Math.random() * w, Math.random() * h,
+        50 + Math.random() * 150, 20 + Math.random() * 60, Math.random() * 3, 0, Math.PI * 2);
+      g.fill();
+    }
+    // Ripple lines. Horizontal and long, so scrolling them reads as a drift
+    // across the surface rather than as a texture sliding.
+    g.lineCap = 'round';
+    for (let i = 0; i < 900; i++) {
+      const y = Math.random() * h;
+      const x = Math.random() * w;
+      const len = 14 + Math.random() * 46;
+      g.globalAlpha = 0.10 + Math.random() * 0.3;
+      g.strokeStyle = Math.random() < 0.6 ? pal.glint : pal.shallow;
+      g.lineWidth = 1 + Math.random() * 1.8;
+      g.beginPath();
+      g.moveTo(x, y);
+      g.quadraticCurveTo(x + len * 0.5, y - 2 - Math.random() * 3, x + len, y);
+      g.stroke();
+    }
+    g.globalAlpha = 1;
+  }, [36, 36]);
+}
+
+function buildWater(v) {
+  const g = new THREE.Group();
+  const pal = v.water;
+  const tex = waterTexture(pal);
+  const mat2 = new THREE.MeshStandardMaterial({
+    color: 0xffffff, map: tex, transparent: true, opacity: 0.93,
+    roughness: 0.16, metalness: 0.32,
+  });
+  // Starts just outside the apron so the boardwalk reads as an island, and
+  // runs past the fog distance so its far edge is never seen.
+  const ring = new THREE.Mesh(
+    new THREE.RingGeometry(Math.max(APRON_X, APRON_Z) + 1.6, 900, 96, 1), mat2);
+  ring.rotation.x = -Math.PI / 2;
+  ring.position.y = -0.12;
+  g.add(ring);
+
+  // A muddy bank where the water meets the boardwalk, so the edge is not a
+  // hard line between paving and open water.
+  const bank = new THREE.Mesh(
+    new THREE.RingGeometry(Math.max(APRON_X, APRON_Z) + 0.2,
+      Math.max(APRON_X, APRON_Z) + 3.4, 64, 1),
+    mat(pal.bank, { roughness: 1 })
+  );
+  bank.rotation.x = -Math.PI / 2;
+  bank.position.y = -0.17;
+  g.add(bank);
+
+  g.userData.water = tex;
+  return g;
+}
+
+// The bowl the championship court sits inside. This is the only part of the
+// downtown dressing the PLAY camera can actually see: it looks down the
+// court, so nothing above ground level past about 35m is ever in frame and
+// the towers are pure backdrop. A wall just behind the stands is inside that
+// band, and it is what turns an open plaza into an arena.
+function buildArena(v) {
+  const g = new THREE.Group();
+  const pal = v.arena;
+  const inner = Math.max(APRON_X, APRON_Z) + 5.4;
+  const H = 7.5;
+  const wall = mat(pal.wall, { roughness: 0.85 });
+  const fascia = mat(pal.fascia, {
+    roughness: 0.5, emissive: pal.fascia, emissiveIntensity: 0.55,
+  });
+  const runs = [
+    { w: inner * 2.2, d: 0.7, x: 0, z: -inner },
+    { w: inner * 2.2, d: 0.7, x: 0, z: inner },
+    { w: 0.7, d: inner * 2, x: -inner * 1.1, z: 0 },
+    { w: 0.7, d: inner * 2, x: inner * 1.1, z: 0 },
+  ];
+  for (const r of runs) {
+    const b = new THREE.Mesh(new THREE.BoxGeometry(r.w, H, r.d), wall);
+    b.position.set(r.x, H / 2 - 0.2, r.z);
+    b.receiveShadow = true;
+    g.add(b);
+    // A lit band along the top, which is what reads as a stadium ring from
+    // inside it.
+    const band = new THREE.Mesh(
+      new THREE.BoxGeometry(r.w + 0.08, 0.5, r.d + 0.08), fascia);
+    band.position.set(r.x, H - 1.1, r.z);
+    g.add(band);
+  }
+  g.userData.fascia = fascia;
+  return g;
+}
+
+// A city around the arena. Boxes of varied height in a loose ring, with a
+// window grid that lights up after dark -- the windows are the whole point,
+// so the texture doubles as the emissive map.
+// Returns a matched pair: the facade, and an emissive mask where only the
+// lit windows are bright. One texture used for both would make the concrete
+// glow as hard as the glass, which at night turned the towers into pale
+// slabs instead of dark buildings with lights on.
+function windowTextures(pal) {
+  const cols = 6, rows = 16;
+  const cells = [];
+  for (let i = 0; i < cols * rows; i++) {
+    const lit = Math.random() < 0.38;
+    cells.push(lit ? (Math.random() < 0.18 ? pal.litWarm : pal.lit) : null);
+  }
+  const paint = (background, litOnly) => canvasTex(128, 256, (g, w, h) => {
+    g.fillStyle = background;
+    g.fillRect(0, 0, w, h);
+    const cw = w / cols, ch = h / rows;
+    for (let r = 0; r < rows; r++) {
+      for (let c = 0; c < cols; c++) {
+        const col = cells[r * cols + c];
+        if (litOnly && !col) continue;
+        g.fillStyle = col || pal.dark;
+        g.fillRect(c * cw + cw * 0.22, r * ch + ch * 0.24, cw * 0.56, ch * 0.5);
+      }
+    }
+  });
+  return { diffuse: paint(pal.wall, false), emissive: paint('#000000', true) };
+}
+
+function buildSkyline(v, rand) {
+  const g = new THREE.Group();
+  g.name = 'skyline';
+  const pal = v.skyline;
+  const mats = [];
+  // A few materials rather than one, so not every tower has the same windows
+  // lit -- one shared texture makes a city look like wallpaper.
+  for (let i = 0; i < 4; i++) {
+    const t = windowTextures(pal);
+    // White base colour: the map already carries the wall tone, and tinting
+    // on top of it multiplies the two and leaves the city black in daylight.
+    mats.push(new THREE.MeshStandardMaterial({
+      color: 0xffffff, map: t.diffuse, emissive: 0xffffff, emissiveMap: t.emissive,
+      emissiveIntensity: 0, roughness: 0.72, metalness: 0.12,
+    }));
+  }
+
+  const geo = new THREE.BoxGeometry(1, 1, 1);
+  // Three ranks. The near one has to be close enough to loom over the stands
+  // from the play camera -- pushed further out it reads as a low wall on the
+  // horizon rather than as a city the court is standing in.
+  const rings = [
+    { dist: 46, count: 20, lo: 22, hi: 58, wide: 8 },
+    { dist: 82, count: 26, lo: 44, hi: 118, wide: 13 },
+    { dist: 138, count: 28, lo: 70, hi: 190, wide: 19 },
+  ];
+  for (const ring of rings) {
+    for (let i = 0; i < ring.count; i++) {
+      const a = (i / ring.count) * Math.PI * 2 + rand() * 0.18;
+      const d = ring.dist * (0.82 + rand() * 0.42);
+      const hgt = ring.lo + Math.pow(rand(), 1.4) * (ring.hi - ring.lo);
+      const wide = ring.wide * (0.55 + rand() * 0.7);
+      const deep = ring.wide * (0.55 + rand() * 0.7);
+      const b = new THREE.Mesh(geo, mats[(rand() * mats.length) | 0]);
+      b.position.set(Math.cos(a) * d, hgt / 2 - 0.3, Math.sin(a) * d);
+      b.scale.set(wide, hgt, deep);
+      b.rotation.y = rand() * 0.5;
+      g.add(b);
+      // Repeat the window grid up the tower rather than stretching six
+      // storeys of glass over a hundred metres.
+      b.material.map.repeat.set(1, 1);
+    }
+  }
+  g.userData.windowMats = mats;
+  return g;
+}
+
+// Cartoon cloud: a handful of overlapping squashed spheres.
 function buildCloud(rand) {
   const g = new THREE.Group();
   const m = new THREE.MeshStandardMaterial({
@@ -1021,6 +1205,18 @@ function buildCloud(rand) {
     g.add(p);
   }
   return g;
+}
+
+/**
+ * Per-frame life in the scenery. Only the water moves, and only on the venue
+ * that has any -- everywhere else this is two property reads.
+ */
+export function animateVenue(sky, dt) {
+  const tex = sky && sky.userData.water;
+  if (!tex) return;
+  // Two axes at different rates so the surface drifts rather than slides.
+  tex.offset.x = (tex.offset.x + dt * 0.013) % 1;
+  tex.offset.y = (tex.offset.y + dt * 0.031) % 1;
 }
 
 // Sky dome, sun, clouds and the ground the court sits on. Everything here is
@@ -1071,6 +1267,24 @@ export function buildSky(sunDirection, venueId) {
   root.add(ground);
 
   const rand = mulberry32(90210);
+  if (v.water) {
+    const water = buildWater(v);
+    root.add(water);
+    root.userData.water = water.userData.water;
+    // The ground under a flooded venue is silt, and it only shows at the
+    // banks, so it is pushed down out of the way of the water surface.
+    ground.position.y = -0.30;
+  }
+  if (v.arena) {
+    const bowl = buildArena(v);
+    root.add(bowl);
+    root.userData.fascia = bowl.userData.fascia;
+  }
+  if (v.skyline) {
+    const city = buildSkyline(v, rand);
+    root.add(city);
+    root.userData.windowMats = city.userData.windowMats;
+  }
   root.add(buildScatter(rand, v.scatter));
   for (let i = 0; i < v.clouds; i++) {
     const cloud = buildCloud(rand);

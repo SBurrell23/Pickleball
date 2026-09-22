@@ -226,6 +226,12 @@ html, body {
 .creator { display: grid; grid-template-columns: 220px 1fr; gap: 24px; align-items: start; }
 @media (max-width: 760px) { .creator { grid-template-columns: 1fr; } }
 
+/* Only once there is genuinely no room do the court buttons stack. */
+@media (max-width: 720px) {
+  .venues { flex-wrap: wrap; }
+  .venue-card { flex: 0 1 auto; }
+}
+
 .creator-preview {
   background: var(--cream-2);
   border: 3px solid var(--ink);
@@ -288,6 +294,14 @@ canvas.big-portrait { width: 100%; height: 190px; display: block; }
 }
 
 .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+@media (min-width: 761px) {
+  /* Desktop: a slot's options belong on one line, so the twelve headwear
+     choices read as one set rather than three ragged rows. */
+  .chips { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 2px; }
+  .chip { flex: 0 0 auto; }
+  .swatches { flex-wrap: nowrap; overflow-x: auto; padding-bottom: 2px; }
+  .swatch { flex: 0 0 auto; }
+}
 .chip {
   padding: 7px 11px;
   font-size: 12px;
@@ -475,16 +489,25 @@ canvas.big-portrait { width: 100%; height: 190px; display: block; }
 
 /* ======================= Venue picker ======================= */
 
-.venues { display: flex; flex-wrap: wrap; gap: 7px; }
+/* One row on a desktop: five courts side by side is the whole choice at a
+   glance, and wrapping two of them onto a second line made the set read as
+   two groups. They share the width equally and the label shrinks to fit. */
+.venues { display: flex; flex-wrap: nowrap; gap: 6px; }
 .venue-card {
+  flex: 1 1 0;
+  min-width: 0;
   display: flex;
   align-items: center;
-  gap: 7px;
-  padding: 5px 10px 5px 5px;
-  font-size: 12px;
+  justify-content: flex-start;
+  gap: 6px;
+  padding: 5px 8px 5px 5px;
+  font-size: 11.5px;
   font-weight: 800;
   cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
 }
+.venue-card strong { overflow: hidden; text-overflow: ellipsis; }
 .venue-card.on { background: var(--court); color: var(--line); }
 .venue-card.on:hover { background: var(--court-dark); }
 .venue-card:disabled { opacity: 0.55; cursor: default; }
