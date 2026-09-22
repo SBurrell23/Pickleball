@@ -552,8 +552,8 @@ export class Menus {
     return null;
   }
 
-  frame(title, body, footer = '') {
-    return `<div class="menu-panel">
+  frame(title, body, footer = '', cls = '') {
+    return `<div class="menu-panel${cls ? ' ' + cls : ''}">
       <div class="menu-head"><h1>${title}</h1></div>
       <div class="menu-body">${body}</div>
       <div class="menu-foot">${footer}</div>
@@ -870,9 +870,20 @@ export class Menus {
 
   screen_achievements() {
     const st = achievementState();
-    const tabs = GROUPS.map((g) =>
-      `<button class="tab ${g === this.achieveTab ? 'on' : ''}"
-        data-act="achieveTab" data-val="${g}">${g}</button>`).join('');
+    // Each tab carries its own tally, so you can see where the gaps are
+    // without clicking through all six to find out.
+    const tally = {};
+    for (const a of ACHIEVEMENTS) {
+      const t = tally[a.group] || (tally[a.group] = { got: 0, all: 0 });
+      t.all += 1;
+      if (st.unlocked[a.id]) t.got += 1;
+    }
+    const tabs = GROUPS.map((g) => {
+      const t = tally[g] || { got: 0, all: 0 };
+      return `<button class="tab ${g === this.achieveTab ? 'on' : ''}
+        ${t.got === t.all ? 'full' : ''}" data-act="achieveTab" data-val="${g}">${g}
+        <em>${t.got}/${t.all}</em></button>`;
+    }).join('');
     const list = ACHIEVEMENTS.filter((a) => a.group === this.achieveTab);
     const rows = list.map((a) => {
       const got = !!st.unlocked[a.id];
@@ -891,7 +902,7 @@ export class Menus {
       </div>
       <div class="tab-bar">${tabs}</div>
       <ul class="ach-list">${rows}</ul>
-    `, `<button data-act="back" data-val="main">Back</button>`);
+    `, `<button data-act="back" data-val="main">Back</button>`, 'wide');
   }
 
   screen_join() {
