@@ -2,7 +2,7 @@ import { Sim, PHASE } from '../src/game/sim.js';
 import { createBotState, updateBot } from '../src/game/ai.js';
 function play(seed, dA, dB) {
   const sim = new Sim({ mode:'singles', seed, players:[
-    {id:'a',charId:'volley',team:0,bot:true},{id:'b',charId:'volley',team:1,bot:true}]});
+    {id:'a',team:0,bot:true},{id:'b',team:1,bot:true}]});
   const bots = [createBotState(dA), createBotState(dB)];
   let ticks=0;
   while (sim.phase !== PHASE.GAMEOVER && ticks < 60*60*8) {

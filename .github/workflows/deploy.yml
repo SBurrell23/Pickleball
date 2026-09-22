@@ -30,6 +30,10 @@ jobs:
         run: node tools/importcheck.mjs
       - name: Run the simulation harness
         run: node tools/simtest.mjs
+      - name: Check the season ladder still ramps
+        run: node tools/seasontest.mjs '' 8
+      - name: Check the season and achievement bookkeeping
+        run: node tools/progresstest.mjs
 
   deploy:
     needs: check

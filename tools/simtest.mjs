@@ -1,18 +1,19 @@
 // Headless rules + balance harness. Run with: node tools/simtest.mjs
 import { Sim, PHASE } from '../src/game/sim.js';
 import { createBotState, updateBot } from '../src/game/ai.js';
+import { DEFAULT_LOOK } from '../src/game/avatar.js';
+
+// Everything in here plays with the human stat line unless a test says
+// otherwise: the balance the harness guards is the one a player experiences.
+const even = (id, team) => ({ id, look: DEFAULT_LOOK, team, bot: true });
 
 function playGame(seed, diffs, mode = 'singles', verbose = false) {
   const players = mode === 'doubles'
     ? [
-        { id: 'a1', charId: 'volley', team: 0, bot: true },
-        { id: 'b1', charId: 'zip', team: 1, bot: true },
-        { id: 'a2', charId: 'smash', team: 0, bot: true },
-        { id: 'b2', charId: 'pip', team: 1, bot: true },
+        even('a1', 0), even('b1', 1), even('a2', 0), even('b2', 1),
       ]
     : [
-        { id: 'a', charId: 'volley', team: 0, bot: true },
-        { id: 'b', charId: 'zip', team: 1, bot: true },
+        even('a', 0), even('b', 1),
       ];
   const sim = new Sim({ mode, players, seed, pointsToWin: 11 });
   const bots = sim.players.map((p) => createBotState(diffs[p.team]));

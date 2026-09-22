@@ -1,6 +1,6 @@
 import { COURT, PLAY, SWING, SHOT } from './constants.js';
 import { PHASE, SWINGSTATE } from './sim.js';
-import { getCharacter, swingTuning } from './characters.js';
+import { swingTuning } from './characters.js';
 import {
   MODE, createSwingState, beginSwing, updateSwing, releaseSwing, classifyShot,
   lobBonus,
@@ -180,8 +180,7 @@ function fireSwing(sim, p, st, tune) {
 
 export function updateBot(sim, p, st, dt) {
   const inp = { mx: 0, mz: 0, dash: false, charging: false, chargeVis: 0 };
-  const ch = getCharacter(p.charId);
-  const tune = swingTuning(ch);
+  const tune = swingTuning(p.def);
   const d = st.difficulty;
   const e = elite(d);
 

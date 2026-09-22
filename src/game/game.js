@@ -1,7 +1,7 @@
 import * as THREE from '../../vendor/three.module.js';
 import { COURT, PLAY, SWING, QUALITY } from './constants.js';
 import { Sim, PHASE, SWINGSTATE } from './sim.js';
-import { getCharacter, swingTuning } from './characters.js';
+import { swingTuning } from './characters.js';
 import { createBotState, updateBot } from './ai.js';
 import { predictLanding } from './ballistics.js';
 import {
@@ -41,6 +41,14 @@ export class Game {
     this.paused = false;
     this.myIdx = 0;
     this.stats = { hits: 0, perfect: 0, longest: 0, faults: 0 };
+    // The handful of things achievements ask about that are not just counts
+    // of shots. Tracked here because they are all "what happened at the end
+    // of a rally", which only this event stream knows.
+    this.feats = {
+      smashWinners: 0, lobWinners: 0, aces: 0, lobPunishes: 0,
+      maxDeficit: 0, rallies: 0, rallyShots: 0,
+    };
+    this.lastHit = null;
 
     this.swing = createSwingState();
     this.swingButton = 0;
@@ -79,8 +87,14 @@ export class Game {
     // agree on every screen without any extra traffic.
     this.playerStats = this.sim.players.map(() => ({
       shots: 0, serve: 0, dink: 0, drive: 0, lob: 0, smash: 0,
-      perfect: 0, chokes: 0, accSum: 0,
+      perfect: 0, weak: 0, chokes: 0, accSum: 0,
     }));
+    this.stats = { hits: 0, perfect: 0, longest: 0, faults: 0 };
+    this.feats = {
+      smashWinners: 0, lobWinners: 0, aces: 0, lobPunishes: 0,
+      maxDeficit: 0, rallies: 0, rallyShots: 0,
+    };
+    this.lastHit = null;
 
     this.crowd = this.court ? this.court.getObjectByName('crowd') : null;
 
@@ -90,7 +104,7 @@ export class Game {
     this.scene.add(this.ballShadow);
 
     for (const p of this.sim.players) {
-      const rig = buildCharacter(getCharacter(p.charId));
+      const rig = buildCharacter(p.def);
       this.scene.add(rig);
       this.rigs.push(rig);
     }
@@ -145,7 +159,7 @@ export class Game {
   // ---- local player input ------------------------------------------------
 
   get me() { return this.sim.players[this.myIdx]; }
-  get myTuning() { return swingTuning(getCharacter(this.me.charId)); }
+  get myTuning() { return swingTuning(this.me.def); }
 
   // Movement is expressed from behind the player, so W is toward the net and
   // D is screen-right whichever side you are on. The camera sits at
@@ -216,6 +230,7 @@ export class Game {
   onRelease(button) {
     if (!this.swing.active || button !== this.swingButton) return;
     const tune = this.myTuning;
+    this.swingLobBonus = this.swing.lobBonus ?? 1;
     const res = releaseSwing(this.swing, tune);
     this.audio.chargeStop();
     if (!res) return;
@@ -251,7 +266,12 @@ export class Game {
       this.net.sendSwing(payload);
       this.startLocalSwingAnim();
     }
-    if (res.quality === QUALITY.PERFECT) this.stats.perfect++;
+    if (res.quality === QUALITY.PERFECT) {
+      this.stats.perfect++;
+      // A widened band means the ball being answered was a genuine lob, so a
+      // perfect release here is the punish the mechanic exists to reward.
+      if ((this.swingLobBonus ?? 1) >= 1.3) this.feats.lobPunishes++;
+    }
   }
 
   // Clients animate their own swing straight away rather than waiting a round
@@ -490,11 +510,19 @@ export class Game {
             if (ps[e.shot] !== undefined) ps[e.shot]++;
             ps.accSum += e.accuracy ?? 0;
             if (e.quality === 'perfect') ps.perfect++;
+            if (e.quality === 'weak') ps.weak++;
             if (e.choke) ps.chokes++;
           }
-          const ch = getCharacter(this.sim.players[e.idx]?.charId);
+          // Who struck the last ball of the rally, and how -- that is what
+          // decides whether the point that follows was a put-away, a lob
+          // winner or an ace.
+          this.lastHit = { idx: e.idx, shot: e.shot, quality: e.quality };
+          // Sparks take the paddle's colour -- it is the thing that hit the
+          // ball, and it is now chosen separately from the kit.
+          const ch = this.sim.players[e.idx]?.def;
+          const spark = ch ? (ch.colors.paddle ?? ch.colors.primary) : 0xffffff;
           this.audio.paddleHit(e.power, e.quality);
-          this.fx.hitEffect(e.pos, e.quality, e.power, ch.colors.primary);
+          this.fx.hitEffect(e.pos, e.quality, e.power, spark);
           if (e.choke) {
             const pl = this.sim.players[e.idx];
             this.fx.popText('CHOKE!', pl.x, 1.95, pl.z, this.hud.badColor, 60);
@@ -564,6 +592,7 @@ export class Game {
           this.hud.setScore(e.score[0], e.score[1], e.serveTeam, mySide);
           this.stats.longest = Math.max(this.stats.longest, e.rallyShots || 0);
           this.fx.addShake(won ? 0.4 : 0.2);
+          this.recordPointFeats(e, won, myTeam, rally);
           break;
         }
         case 'game':
@@ -575,12 +604,44 @@ export class Game {
     }
   }
 
+  // Everything the results screen and the achievement checker need, in one
+  // plain object. Deliberately free of live game state so it can be built in
+  // a test without a renderer behind it.
+  matchSummary(e) {
+    const myTeam = this.me.team;
+    const st = this.playerStats[this.myIdx] || {};
+    const f = this.feats;
+    return {
+      mode: this.mode,
+      matchMode: this.config?.mode === 'doubles' ? 'doubles' : 'singles',
+      won: e.winner === myTeam,
+      myScore: e.score[myTeam] ?? 0,
+      theirScore: e.score[1 - myTeam] ?? 0,
+      shots: st.shots || 0,
+      dinks: st.dink || 0,
+      drives: (st.drive || 0) + (st.smash || 0),
+      lobs: st.lob || 0,
+      perfects: st.perfect || 0,
+      weak: st.weak || 0,
+      chokes: st.chokes || 0,
+      accuracy: st.shots ? st.accSum / st.shots : 0,
+      longestRally: this.stats.longest,
+      avgRally: f.rallies ? f.rallyShots / f.rallies : 0,
+      maxDeficit: f.maxDeficit,
+      smashWinners: f.smashWinners,
+      lobWinners: f.lobWinners,
+      aces: f.aces,
+      lobPunishes: f.lobPunishes,
+    };
+  }
+
   onGameOver(e) {
     const won = e.winner === this.me.team;
     this.audio.gameOver(won);
     this.hud.message(won ? 'GAME!' : 'DEFEAT', 'big', 3);
     this.onFinish?.({
       won, score: e.score,
+      summary: this.matchSummary(e),
       // Partners next to each other, and the winning side first, so the table
       // reads the way the scoreline does.
       players: this.sim.players
@@ -715,6 +776,24 @@ export class Game {
     this.updateHud(dt);
   }
 
+  // Everything an achievement might later ask about the point that just
+  // ended. Only the local player's doing counts -- these are your feats.
+  recordPointFeats(e, won, myTeam, rally) {
+    const f = this.feats;
+    f.rallies += 1;
+    f.rallyShots += rally;
+    const deficit = (e.score[1 - myTeam] || 0) - (e.score[myTeam] || 0);
+    if (deficit > f.maxDeficit) f.maxDeficit = deficit;
+    const last = this.lastHit;
+    this.lastHit = null;
+    if (!won || !last || last.idx !== this.myIdx) return;
+    if (last.shot === 'smash' && last.quality === 'perfect') f.smashWinners += 1;
+    if (last.shot === 'lob') f.lobWinners += 1;
+    // An ace is a serve the other side never got a paddle to, which shows up
+    // as the rally ending on shot one with the serve still the last contact.
+    if (last.shot === 'serve' && rally <= 1) f.aces += 1;
+  }
+
   // Which side of themselves a player holds the paddle. Measured in screen
   // space against the cursor, because that is what the player is actually
   // judging: is the mouse left or right of my character. Deriving it from the
@@ -747,8 +826,9 @@ export class Game {
     const charge = Math.min(1, p.chargeVis);
     this.sparkAccum[i] = (this.sparkAccum[i] || 0) + dt * (8 + charge * 46);
     if (this.sparkAccum[i] < 1) return;
-    const ch = getCharacter(p.charId);
-    this._sparkColor.set(ch.colors.primary).lerp(SPARK_HOT, 0.35 + charge * 0.6);
+    const ch = p.def;
+    this._sparkColor.set(ch.colors.paddle ?? ch.colors.primary)
+      .lerp(SPARK_HOT, 0.35 + charge * 0.6);
     paddleWorldPos(rig, this._paddlePos);
     while (this.sparkAccum[i] >= 1) {
       this.sparkAccum[i] -= 1;

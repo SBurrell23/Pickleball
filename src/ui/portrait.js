@@ -12,8 +12,10 @@ const INK = '#1e2230';                     // one dark outline colour for every 
 const BLUSH = 'rgba(255,122,138,0.40)';
 const SHADOW = 'rgba(16,24,32,0.20)';
 
-const DEF_BUILD = { torso: 'tapered', head: 'round', crest: 'visor', scale: 1, bulk: 1 };
-const DEF_COLORS = { primary: 0x2f9e6e, secondary: 0xf2f7f4, trim: 0x18412f, skin: 0xd8a074 };
+const DEF_BUILD = { torso: 'tapered', head: 'round', crest: 'visor',
+  shirt: 'band', scale: 1, bulk: 1 };
+const DEF_COLORS = { primary: 0x2f9e6e, secondary: 0xf2f7f4, trim: 0x18412f,
+  skin: 0xd8a074 };
 
 // Vertical budget in fractions of the figure height, measured from the top of
 // the head. Head 0.30, torso 0.33, legs 0.37 -> ~3.3 heads tall.
@@ -90,7 +92,9 @@ function draw(g, W, H, def) {
   const crest = String(b.crest || 'none');
 
   // Tall crests need headroom or they clip the top of the card.
-  const crestRoom = crest === 'mohawk' ? 0.11 : crest === 'bun' ? 0.085 : 0.03;
+  const crestRoom = crest === 'mohawk' ? 0.11
+    : crest === 'crown' ? 0.10
+    : (crest === 'bun' || crest === 'beanie') ? 0.085 : 0.03;
 
   // `scale` is damped: the roster spans 0.90..1.14 and full range would make
   // the small characters look like a mistake next to the big ones.
@@ -119,6 +123,7 @@ function draw(g, W, H, def) {
 
   const m = {
     g, W, H, cx, topY, ch, lw, fine, mid, b, crest, bulkF, bulk, hs, hw, bulge,
+    shirt: String(b.shirt || 'band'),
     C: {
       primary: hex(col.primary),
       primaryDark: hex(shade(col.primary, 0.22)),
@@ -127,6 +132,9 @@ function draw(g, W, H, def) {
       trimLight: hex(tint(col.trim, 0.22)),
       skin: hex(col.skin),
       skinDark: hex(shade(col.skin, 0.18)),
+      // Falls back to the kit so every rival looks exactly as it always did.
+      paddle: hex(col.paddle ?? col.primary),
+      paddleDark: hex(shade(col.paddle ?? col.primary, 0.3)),
     },
     X: (f) => cx + f * ch,
     Y: (f) => topY + f * ch,
@@ -218,19 +226,69 @@ function torso(m) {
   ink(m, m.C.primary, 1.15);
 
   if (m.fine) {
-    // Collar + racing stripe in the kit's secondary.
+    // Collar, always.
     g.fillStyle = m.C.secondary;
     g.beginPath();
     g.moveTo(m.cx - hs * 0.42, m.Y(HEAD_BOT) - m.U(0.012));
     g.quadraticCurveTo(m.cx, m.Y(HEAD_BOT) + m.U(0.06), m.cx + hs * 0.42, m.Y(HEAD_BOT) - m.U(0.012));
     g.quadraticCurveTo(m.cx, m.Y(HEAD_BOT) + m.U(0.02), m.cx - hs * 0.42, m.Y(HEAD_BOT) - m.U(0.012));
     g.fill();
-    roundRect(g, m.cx - m.U(0.018), m.Y(0.36), m.U(0.036), m.U(0.2), m.U(0.016));
-    g.fill();
+    shirtMarkings(m);
     // Waist band ties the shirt to the shorts.
     g.fillStyle = m.C.trim;
     roundRect(g, m.cx - hw * 0.94, m.Y(0.585), hw * 1.88, m.U(0.03), m.U(0.014));
     g.fill();
+  }
+}
+
+// Kit markings, matching the 3D rig's shirtPieces(). The body is a bean, so
+// every band is clipped to the torso silhouette rather than drawn as a
+// floating rectangle -- otherwise a hoop hangs off the side of a slim figure.
+function shirtMarkings(m) {
+  const { g, hs, hw } = m;
+  const wAt = (f) => hs + (hw - hs) * f;         // torso half-width, top to hem
+  const bar = (y0, y1, color) => {
+    const f0 = (y0 - HEAD_BOT) / (TORSO_BOT - HEAD_BOT);
+    const w = wAt(Math.max(0, Math.min(1, f0))) * 1.02;
+    g.fillStyle = color;
+    roundRect(g, m.cx - w, m.Y(y0), w * 2, m.U(y1 - y0), m.U(0.012));
+    g.fill();
+  };
+  const S = m.C.secondary;
+  switch (m.shirt) {
+    case 'plain':
+      break;
+    case 'hoops':
+      bar(0.365, 0.395, S); bar(0.445, 0.475, S); bar(0.525, 0.555, S);
+      break;
+    case 'panel':
+      bar(0.315, 0.425, S);
+      break;
+    case 'stripe':
+      g.fillStyle = S;
+      roundRect(g, m.cx - m.U(0.024), m.Y(0.33), m.U(0.048), m.U(0.24), m.U(0.02));
+      g.fill();
+      break;
+    case 'trim':
+      bar(0.325, 0.35, S); bar(0.55, 0.575, S);
+      break;
+    case 'sash': {
+      g.save();
+      g.translate(m.cx, m.Y(0.45));
+      g.rotate(-0.55);
+      g.fillStyle = S;
+      roundRect(g, -hs * 1.5, -m.U(0.042), hs * 3.0, m.U(0.084), m.U(0.03));
+      g.fill();
+      g.restore();
+      break;
+    }
+    case 'champion':
+      bar(0.355, 0.375, '#d8a52a');
+      bar(0.40, 0.47, S);
+      bar(0.495, 0.515, '#d8a52a');
+      break;
+    default:
+      bar(0.40, 0.47, S);
   }
 }
 
@@ -282,9 +340,9 @@ function paddle(m) {
     ink(m, m.C.trim);
     // Rounded-rectangle face: a paddle silhouette, not a lollipop.
     roundRect(g, -m.U(0.095), -m.U(0.255), m.U(0.19), m.U(0.205), m.U(0.072));
-    ink(m, m.C.primary, 1.35);
+    ink(m, m.C.paddle, 1.35);
     if (m.mid) {
-      g.fillStyle = m.C.secondary;
+      g.fillStyle = m.C.paddleDark;
       roundRect(g, -m.U(0.072), -m.U(0.235), m.U(0.144), m.U(0.038), m.U(0.017));
       g.fill();
     }
@@ -329,7 +387,8 @@ function face(m) {
 
   if (m.fine) {
     // Brows only on the bare-forehead crests; under a band they read as a squint.
-    if (m.crest === 'mohawk' || m.crest === 'ponytail' || m.crest === 'bun') {
+    if (m.crest === 'mohawk' || m.crest === 'ponytail' || m.crest === 'bun'
+      || m.crest === 'none' || m.crest === 'crown' || m.crest === 'headphones') {
       g.strokeStyle = m.C.trim;
       g.lineWidth = m.lw * 1.6;
       for (const s of [-1, 1]) {
@@ -404,9 +463,21 @@ function crestBack(m) {
       }
       break;
     }
+    case 'headphones': {
+      // Far cup peeks out behind the head; the near one is drawn in front.
+      g.beginPath();
+      g.ellipse(m.hx - m.hrx * 1.02, m.hcy, m.U(0.042), m.U(0.058), 0, 0, Math.PI * 2);
+      ink(m, m.C.primary);
+      break;
+    }
     case 'visor':
     case 'cap':
+    case 'bucket':
+    case 'beanie':
+    case 'shades':
+    case 'crown':
     case 'headband':
+    case 'none':
     default:
       break;                                   // nothing sits behind the head
   }
@@ -463,6 +534,81 @@ function crestFront(m) {
       }
       break;
     }
+    case 'beanie': {
+      // Knitted cap pulled down past the brow, with a turned-up roll.
+      g.beginPath();
+      g.ellipse(m.hx, m.Y(0.108), m.hrx * 1.08, m.U(0.125), 0, Math.PI, Math.PI * 2);
+      g.closePath();
+      ink(m, m.C.trim, 1.15);
+      roundRect(g, m.hx - m.hrx * 1.1, m.Y(0.084), m.hrx * 2.2, m.U(0.05), m.U(0.022));
+      ink(m, m.C.primary);
+      if (m.fine) {
+        g.beginPath();
+        g.arc(m.hx, m.Y(-0.022), m.U(0.032), 0, Math.PI * 2);
+        ink(m, m.C.primary);
+      }
+      break;
+    }
+    case 'bucket': {
+      g.beginPath();
+      g.ellipse(m.hx, m.Y(0.096), m.hrx * 0.98, m.U(0.096), 0, Math.PI, Math.PI * 2);
+      g.closePath();
+      ink(m, m.C.primary, 1.15);
+      // Brim on both sides -- that is the whole point of a bucket hat.
+      g.beginPath();
+      g.ellipse(m.hx, m.Y(0.1), m.hrx * 1.52, m.U(0.038), 0, 0, Math.PI * 2);
+      ink(m, m.C.trim);
+      break;
+    }
+    case 'shades': {
+      hairCap(m);
+      // Pushed up onto the brow: there is no face under them to cover.
+      roundRect(g, m.hx - m.hrx * 1.02, m.Y(0.062), m.hrx * 2.04, m.U(0.055), m.U(0.02));
+      ink(m, m.C.trim);
+      if (m.fine) {
+        g.fillStyle = m.C.trimLight;
+        roundRect(g, m.hx - m.hrx * 0.9, m.Y(0.072), m.hrx * 1.8, m.U(0.016), m.U(0.008));
+        g.fill();
+      }
+      break;
+    }
+    case 'headphones': {
+      hairCap(m);
+      // Headband arcs over the skull, near cup over the ear.
+      g.strokeStyle = m.C.trim;
+      g.lineWidth = m.lw * 3.4;
+      g.beginPath();
+      g.arc(m.hx, m.hcy, m.hrx * 1.05, Math.PI * 1.08, Math.PI * 1.92);
+      g.stroke();
+      g.beginPath();
+      g.ellipse(m.hx + m.hrx * 1.02, m.hcy, m.U(0.042), m.U(0.058), 0, 0, Math.PI * 2);
+      ink(m, m.C.primary);
+      break;
+    }
+    case 'crown': {
+      hairCap(m);
+      const base = m.Y(0.03);
+      const w = m.hrx * 1.9;
+      const pts = 5;
+      g.beginPath();
+      g.moveTo(m.hx - w / 2, base);
+      for (let i = 0; i < pts; i++) {
+        const x0 = m.hx - w / 2 + (w * i) / pts;
+        const x1 = m.hx - w / 2 + (w * (i + 0.5)) / pts;
+        const x2 = m.hx - w / 2 + (w * (i + 1)) / pts;
+        g.lineTo(x1, base - m.U(0.085));
+        g.lineTo(x2, base);
+        if (i === 0) g.lineTo(x0, base);
+      }
+      g.lineTo(m.hx + w / 2, base + m.U(0.042));
+      g.lineTo(m.hx - w / 2, base + m.U(0.042));
+      g.closePath();
+      ink(m, '#d8a52a', 1.2);
+      break;
+    }
+    case 'none':
+      hairCap(m);
+      break;
     case 'ponytail':
     case 'bun':
       hairCap(m);
