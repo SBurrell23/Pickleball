@@ -90,7 +90,11 @@ export const VENUES = [
     scatter: { kind: 'reed', count: 420, colors: [0x6f8a4a, 0x59743d, 0x84a05a, 0x46603a] },
     // A few standing pools out in the reeds. Not a flood -- just enough that
     // the ground reads as wet.
-    ponds: { count: 9, near: 8, color: 0x2f6f8c, rim: 0x4a4a32, size: [3.5, 7] },
+    ponds: {
+      count: 9, near: 8, color: 0x2f6f8c, rim: 0x4a4a32,
+      size: [3.5, 7],        // out on the horizon
+      nearSize: [1.3, 1.4],  // in the strip beside the stands
+    },
     fence: { post: 0x4a4032, mesh: 'rgba(190, 200, 190, 0.8)' },
     stands: { color: 0x5a4c3a, crowd: 0.44 },
     lights: { show: true, pole: 0x3d352a, lamp: 0xfff4d0 },

@@ -197,7 +197,8 @@ export class Game {
   updateNetWindow(dt) {
     // Paused means a menu is over the court and the pointer belongs to it,
     // so the net should not be reacting to where that pointer happens to be.
-    if (this.paused) {
+    // Switched off, it should not be reacting at all.
+    if (this.paused || !this.settings.get('netFade')) {
       if (this.netWindow !== 0) {
         this.netWindow = 0;
         setNetWindow(this.court, 0, 0, 0);

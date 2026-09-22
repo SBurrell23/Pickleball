@@ -12,6 +12,7 @@ export const DEFAULTS = {
   shake: 0.7,            // 0 .. 1
   showFps: false,
   crowd3d: true,
+  netFade: false,       // fade the net around the cursor while aiming
 
   // Audio
   master: 0.85,

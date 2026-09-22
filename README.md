@@ -23,7 +23,7 @@ music track.
 | Mouse | Aim. The reticle replaces the system cursor; the marker on the far court is where the ball will actually land. |
 | Hold left click | **Drive shot.** Full power bar — all the pace you can get, but the sweet spot is a long way up. |
 | Hold right click | **Dink shot.** Half-length bar — sweet spot in half the time, but it can never hit hard. |
-| Hover the net | The mesh fades out around the cursor, so you can see the far kitchen through the thing you are trying to drop a ball over. |
+| Hover the net | With **See through the net** on (Settings → Graphics, off by default), the net and its tape fade out around the cursor so you can see the far kitchen through the thing you are trying to drop a ball over. |
 | Release | Swing. Stop the marker in the sweet spot. Let the bar fill all the way into the red and you have **choked** — the ball is netted or long, every time. |
 | `Space` | Hold during a **drive** to loop it into a lob. Does nothing on a dink — that is already the soft shot. |
 | `Shift` | Dash. Costs stamina. |
@@ -172,7 +172,11 @@ has to be to be in shot, and a tall prop is governed by the height of its
 middle rather than its base. That one line decides everything — a pond lying
 flat can be twenty metres out, a pine whose middle is over two metres up has
 to be inside about eight. The first pass ignored height and put a whole
-forest just above the top of the frame.
+forest just above the top of the frame; the second forgot that a placement
+is a *centre*, and dropped three-metre ponds a metre outside the stands,
+which put them under the seating and out across the court. Placements now
+take the prop's own half-width, and the near ponds are small — the strip of
+ground that camera can see is only a few metres wide.
 
 Centre Court hangs its honours twice for the same reason: banners at
 rafters height round the bowl, which only the wide view sees, and a low
@@ -244,7 +248,7 @@ Graphics, audio and feel are all adjustable from the menu and persist locally.
 
 - **Graphics** — frame rate cap, anti-aliasing (off / FXAA / MSAA), resolution
   scale, shadow quality, particle density, ball trail, glow, animated crowd,
-  screen shake, FPS counter. Field of view is deliberately not a setting: the
+  screen shake, the see-through-net aid, FPS counter. Field of view is deliberately not a setting: the
   camera framing and the mouse-to-court aim mapping are tuned around one lens.
 - **Audio** — master, effects, music and crowd ambience, plus mute-on-blur.
 - **Gameplay** — CPU difficulty (Easy / Normal / Hard / Extreme, also pickable

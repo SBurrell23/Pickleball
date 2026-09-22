@@ -1043,28 +1043,39 @@ const CAM_Z = 14.6;
 const CAM_TOP_SLOPE = 0.2235;    // tan(12.6 deg), the top edge of the frame
 const CAM_SIDE_SLOPE = 0.62;     // tan of the horizontal half-angle at 16:9
 
-function nearPlacements(rand, count, centreY = 0) {
+// How far out the side stands reach, which is the thing a near prop has to
+// clear before anything else.
+const STAND_X = APRON_X + 1.5 + (SIDE_ROWS - 1) * 0.9;
+
+/**
+ * `spread` is the prop's own half-width. It matters: a placement is a
+ * CENTRE, and a pond three metres across placed a metre outside the stands
+ * still ends up under them. Ignoring it put Tidewater's near ponds through
+ * the seating and out across the court.
+ */
+function nearPlacements(rand, count, centreY = 0, spread = 0) {
   const out = [];
   // How far out this prop can stand before its middle leaves the frame.
   const zLimit = CAM_Z - (CAM_EYE - centreY) / CAM_TOP_SLOPE;
   const zFar = Math.max(-20, Math.min(-6.5, zLimit + 0.5));
   if (zFar > -6.5) return out;
 
+  const inner = Math.max(11.2, STAND_X + spread + 0.7);
   const poles = [
     [APRON_X + 2.6, APRON_Z - 1.5], [-(APRON_X + 2.6), APRON_Z - 1.5],
     [APRON_X + 2.6, -(APRON_Z - 1.5)], [-(APRON_X + 2.6), -(APRON_Z - 1.5)],
   ];
   const clearOfPoles = (x, z) =>
-    poles.every(([px, pz]) => Math.hypot(x - px, z - pz) > 2.8);
+    poles.every(([px, pz]) => Math.hypot(x - px, z - pz) > 2.8 + spread);
 
   let guard = 0;
-  while (out.length < count * 2 && guard++ < count * 60) {
+  while (out.length < count * 2 && guard++ < count * 80) {
     // Flanks: past the side stands, angled into the cone. This is the only
     // ground the play camera sees that is not court, apron or seating.
-    const z = -6.2 + (zFar + 6.2) * rand();
-    const limit = Math.min(16.5, CAM_SIDE_SLOPE * (CAM_Z - z));
-    if (limit <= 11.2) continue;
-    const x = (11.2 + rand() * (limit - 11.2)) * (rand() < 0.5 ? -1 : 1);
+    const z = -6.2 - spread + (zFar + 6.2 + spread) * rand();
+    const limit = Math.min(17.5, CAM_SIDE_SLOPE * (CAM_Z - z)) - spread * 0.5;
+    if (limit <= inner) continue;
+    const x = (inner + rand() * (limit - inner)) * (rand() < 0.5 ? -1 : 1);
     if (!clearOfPoles(x, z)) continue;
     // Mirrored, because which end you stand at depends on which side you
     // were dealt and both players should get the same view.
@@ -1101,8 +1112,10 @@ function buildScatter(rand, scatter) {
   // it can stand: base scale times the height multiplier, halved.
   const midY = (form.size[0] + form.size[1] * 0.5)
     * (form.tall[0] + form.tall[1] * 0.5) * 0.5;
+  const halfWide = (form.size[0] + form.size[1] * 0.5)
+    * (form.wide[0] + form.wide[1] * 0.5);
   const close = scatter.near
-    ? nearPlacements(rand, Math.ceil(scatter.near / 2), midY) : [];
+    ? nearPlacements(rand, Math.ceil(scatter.near / 2), midY, halfWide) : [];
   for (let i = 0; i < count; i++) {
     let px;
     let pz;
@@ -1148,20 +1161,28 @@ function buildPonds(v, rand) {
   const water = mat(p.color, { roughness: 0.18, metalness: 0.35 });
   const rim = mat(p.rim, { roughness: 1 });
   const disc = new THREE.CircleGeometry(1, 20);
-  // Ponds lie flat, so they can sit much further out than anything standing.
-  const close = p.near ? nearPlacements(rand, Math.ceil(p.near / 2), 0) : [];
+  // Ponds lie flat, so they can sit much further out than anything standing
+  // -- but the near ones have to be small, because the only ground the play
+  // camera sees is a strip a few metres wide between the stands and the edge
+  // of frame. The far ones out on the horizon keep their full size.
+  const nearSize = p.nearSize || [1.4, 1.6];
+  const nearMax = nearSize[0] + nearSize[1];
+  const close = p.near
+    ? nearPlacements(rand, Math.ceil(p.near / 2), 0, nearMax * 1.2) : [];
   for (let i = 0; i < p.count + (p.near || 0); i++) {
     let cx;
     let cz;
+    let rx;
     if (i < close.length) {
       [cx, cz] = close[i];
+      rx = nearSize[0] + rand() * nearSize[1];
     } else {
       const ang = rand() * Math.PI * 2;
       const dist = FENCE.Z + 9 + Math.pow(rand(), 0.7) * 58;
       cx = Math.cos(ang) * dist * 1.05;
       cz = Math.sin(ang) * dist;
+      rx = p.size[0] + rand() * p.size[1];
     }
-    const rx = p.size[0] + rand() * p.size[1];
     const rz = rx * (0.55 + rand() * 0.7);
     // Muddy rim first, water slightly proud of it, so the edge is a bank
     // rather than a cut-out.
@@ -1196,10 +1217,18 @@ function bannerTexture(year, name, pal) {
 
     // A rule under the year, then the champion, wrapped to fit.
     g.fillRect(w * 0.22, 76, w * 0.56, 3);
+    // Measure rather than guess at a size from the letter count: "SOVEREIGN"
+    // and "MOSS" are both short words and one of them ran off the trim.
     g.fillStyle = pal.text;
-    const size = name.length > 8 ? 22 : 27;
-    g.font = `700 ${size}px "Trebuchet MS", sans-serif`;
-    g.fillText(name.toUpperCase(), w / 2, 124);
+    const label = name.toUpperCase();
+    const room = w - 34;
+    let size = 28;
+    do {
+      g.font = `700 ${size}px "Trebuchet MS", sans-serif`;
+      if (g.measureText(label).width <= room) break;
+      size -= 1;
+    } while (size > 11);
+    g.fillText(label, w / 2, 124, room);
 
     // A small cup glyph below it, built from arcs rather than a font symbol.
     g.fillStyle = pal.trim;

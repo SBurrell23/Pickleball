@@ -80,6 +80,8 @@ const SCHEMA = {
     { key: 'crowd3d', label: 'Animated crowd', type: 'toggle' },
     { key: 'shake', label: 'Screen shake', type: 'range',
       min: 0, max: 1, step: 0.05, fmt: (v) => (v === 0 ? 'Off' : Math.round(v * 100) + '%') },
+    { key: 'netFade', label: 'See through the net', type: 'toggle',
+      note: 'Fades the net away around the cursor while you aim at it, so you can see the far kitchen through it. Off by default -- it changes what the court looks like, not what it does.' },
     { key: 'showFps', label: 'Show FPS counter', type: 'toggle' },
   ],
   Audio: [
