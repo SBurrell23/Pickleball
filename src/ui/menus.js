@@ -134,16 +134,15 @@ const SWINGS = [
     key: 'Left Click', name: 'Drive', tag: 'Full bar',
     what: 'The whole power bar, sweet spot near the top. All the pace you can '
       + 'get, and the only swing that can really hurt anybody.',
-    cost: 'The longest wait, and the most rope to hang yourself with. Overfill '
-      + 'the bar and you choke it, and a choked ball never comes back.',
+    cost: 'The longest wait, and the most rope to hang yourself with. Hold too '
+      + 'long and you will CHOKE.',
   },
   {
     key: 'Right Click', name: 'Dink', tag: 'Half bar',
     what: 'The same bar at half the length, so the sweet spot arrives in half '
       + 'the time. The answer when a ball comes back too fast to fill a drive.',
     cost: 'It can never hit hard -- you stay in the rally rather than win it. '
-      + 'And the red is still the red: overfill the short bar and you choke it '
-      + 'just the same.',
+      + 'Hold too long and you will CHOKE.',
   },
   {
     key: 'Space', name: 'Lob', tag: 'No bar',

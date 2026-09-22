@@ -81,8 +81,12 @@ export const SWING = {
   // Only serves are affected; rally timing is unchanged.
   SERVE_ZONE: 1 / 3,        // serving off the full bar
   SERVE_ZONE_QUICK: 1 / 2,  // serving off the short bar, already harder
-  QUICK_CHARGE: 0.38,       // short bar: reaches its sweet spot in about half
-                            // the time of a full drive
+  // Short bar. It used to be 0.38 -- exactly half the drive -- which put only
+  // 65ms inside its sweet band against the drive's 133, and half a bar's
+  // worth of pixels to aim at. Precise enough to be fiddly rather than fast.
+  // At 0.52 it is still clearly the quick option, two thirds of a drive, and
+  // the band is a playable 88ms.
+  QUICK_CHARGE: 0.52,
   QUICK_POWER: 0.50,        // and can never hit anywhere near a drive's pace
   MIN_HOLD: 0.045,          // taps below this are treated as a quick block
   // Putting a lob up hands the other side a long, slow, obvious ball. Sitting

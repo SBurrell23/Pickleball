@@ -1,5 +1,5 @@
 import { MODE, sweetZone } from '../game/swing.js';
-import { PLAY } from '../game/constants.js';
+import { PLAY, SWING } from '../game/constants.js';
 import { drawReticle } from './reticle.js';
 
 // The swing meter is the thing the player actually looks at, so it is drawn on
@@ -168,10 +168,12 @@ export class Hud {
     const pal = this._palette();
 
     const quick = sw.mode === MODE.QUICK;
-    // The quick bar is literally half the length of the drive bar. That is the
-    // whole point of it, so it has to look like it.
+    // The quick bar is drawn at exactly the fraction of the drive it fills
+    // in, so what you aim at is the shape of what you are actually doing.
+    // Derived rather than written down twice: it was a hardcoded half beside
+    // a 0.38s fill, and the moment one moved the other was a lie.
     const full = Math.min(420, this.w * 0.42);
-    const W = quick ? full * 0.5 : full;
+    const W = quick ? full * (SWING.QUICK_CHARGE / SWING.CHARGE_TIME) : full;
     const H = 26;
     const x = (this.w - W) / 2;
     const y = this.h - 128;
