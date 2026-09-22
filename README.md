@@ -191,6 +191,21 @@ the ladder picks: every run opens on the rec courts you learned on and
 finishes on the championship court, touring more of the list the longer the
 ladder is.
 
+## The menu
+
+Three labelled sections rather than eight equal buttons in a grid: **Play**,
+with the season as a headline tile carrying a pip per difficulty cleared;
+**Online**, host and join; and **Your player**, which shows your actual
+character and how far through the achievements you are. How to Play and
+Settings are demoted to the footer, because the gear in the corner already
+opens Settings from anywhere.
+
+The player tile and the editor both render the **live 3D rig** — the same
+`buildCharacter` the match uses — on a turntable, rather than a drawn
+portrait. When somebody is choosing a kit they should be looking at the
+thing that walks onto the court. It is one renderer moved between hosts, at
+30fps, because only one preview is ever on screen at a time.
+
 ## Rules
 
 Real pickleball rules, because they are what make the two meters matter:

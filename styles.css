@@ -240,7 +240,7 @@ html, body {
   position: sticky;
   top: 0;
 }
-canvas.big-portrait { width: 100%; height: 190px; display: block; }
+
 .creator-name {
   font-weight: 900;
   font-size: 17px;
@@ -510,6 +510,120 @@ canvas.big-portrait { width: 100%; height: 190px; display: block; }
   border: 2px solid var(--ink);
   border-radius: 5px;
   background: linear-gradient(var(--c) 0 34%, var(--a) 34% 66%, var(--b) 66% 100%);
+}
+
+
+/* ======================= Home ======================= */
+
+/* Eight equal buttons in a grid is a list, not a menu -- nothing tells you
+   where to start or what belongs with what. Three labelled sections, with
+   the season as the headline and the two utility screens demoted to the
+   footer, says it without anyone having to read all eight. */
+.home { display: flex; flex-direction: column; gap: 4px; }
+.home-sec + .home-sec { margin-top: 13px; }
+
+.sec-label {
+  margin: 0 0 7px !important;
+  font-size: 10.5px !important;
+  font-weight: 900;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--ink-soft) !important;
+}
+
+.home-row { display: grid; gap: 9px; }
+.home-row.lead { grid-template-columns: 1.55fr 1fr; }
+.home-row.two { grid-template-columns: 1fr 1fr; }
+
+.tile {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 13px 15px;
+  text-align: left;
+  cursor: pointer;
+}
+.tile strong {
+  font-size: 15px;
+  font-weight: 900;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+.tile > span {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--ink-soft);
+  line-height: 1.35;
+}
+.tile:hover > span { color: var(--ink); }
+
+/* The headline. Bigger type and the yellow of the ball, because it is the
+   mode the whole game is built around. */
+.tile.hero {
+  background: var(--ball);
+  padding: 15px 17px;
+  justify-content: center;
+}
+.tile.hero strong { font-size: 21px; }
+.tile.hero > span { color: var(--ink); opacity: 0.78; }
+.tile.hero:hover { background: var(--ball-deep); }
+/* A run in progress is worth shouting about. */
+.tile.hero.live { box-shadow: 0 6px 0 var(--ink), 0 0 0 3px var(--kitchen); }
+
+.pips { display: flex; gap: 5px; margin-top: 7px; }
+.pips i {
+  width: 11px; height: 11px;
+  border-radius: 50%;
+  border: 2px solid var(--ink);
+  background: rgba(16, 32, 44, 0.16);
+}
+.pips i.on { background: var(--kitchen); }
+
+/* Your own character, on the button that edits it. */
+.tile.face { flex-direction: row; align-items: center; gap: 11px; }
+.tile-face { width: 48px; height: 58px; flex: none; display: block; }
+canvas.preview-canvas { width: 100%; height: 100%; display: block; }
+/* The editor's stage: a sunlit box for the figure to turn in. */
+.live-stage {
+  width: 100%;
+  height: 190px;
+  border-radius: 10px;
+  background:
+    radial-gradient(ellipse at 50% 88%, rgba(16, 32, 44, 0.16) 0 28%, transparent 60%),
+    linear-gradient(#cfe6f5, #eef6ea);
+  overflow: hidden;
+}
+.tile-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.tile-text strong {
+  font-size: 15px;
+  font-weight: 900;
+  text-transform: uppercase;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tile-text > span { font-size: 11.5px; font-weight: 700; color: var(--ink-soft); }
+
+.tile-bar {
+  width: 100%;
+  height: 8px;
+  margin-top: 8px;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  background: rgba(16, 32, 44, 0.12);
+  overflow: hidden;
+}
+.tile-bar i { display: block; height: 100%; background: var(--ball); }
+
+.home-foot { justify-content: space-between; align-items: center; }
+.home-links { display: flex; gap: 8px; }
+.home-links button { padding: 9px 15px; font-size: 12.5px; }
+
+@media (max-width: 620px) {
+  .home-row.lead, .home-row.two { grid-template-columns: 1fr; }
+  .home-foot { flex-direction: column-reverse; gap: 10px; align-items: stretch; }
+  .home-links { justify-content: center; }
+  .home-foot .muted { text-align: center; }
 }
 
 /* ============================ Menus ============================ */

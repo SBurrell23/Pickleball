@@ -29,7 +29,8 @@ const mods = [
   'src/core/settings.js','src/core/input.js','src/audio/audio.js',
   'src/render/assets.js','src/render/character.js','src/render/fx.js','src/render/view.js',
   'src/net/net.js','src/net/interp.js','src/ui/hud.js','src/ui/menus.js',
-  'src/ui/portrait.js','src/ui/reticle.js','src/ui/icons.js','src/game/game.js',
+  'src/ui/portrait.js','src/ui/reticle.js','src/ui/icons.js','src/ui/preview.js',
+  'src/game/game.js',
 ];
 let bad = 0;
 for (const m of mods) {

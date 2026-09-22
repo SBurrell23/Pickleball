@@ -1,5 +1,6 @@
 import { DEFAULTS } from '../core/settings.js';
 import { drawPortrait } from './portrait.js';
+import { CharacterPreview } from './preview.js';
 import { CURSOR_STYLES, CURSOR_COLORS, drawReticle } from './reticle.js';
 import {
   avatarDef, cleanName, optionsFor, findOption, isUnlocked, loadLook, saveLook,
@@ -174,6 +175,7 @@ export class Menus {
   }
 
   hide() {
+    if (this.preview) this.preview.stop();
     this.screen = null;
     this._renderedScreen = null;
     this.el.classList.remove('open');
@@ -467,6 +469,16 @@ export class Menus {
   }
 
   afterRender() {
+    // Live 3D preview, if this screen wants one. There is a single renderer
+    // moved between hosts -- only one preview is ever on screen at a time.
+    const stage = this.el.querySelector('[data-live]');
+    if (stage) {
+      if (!this.preview) this.preview = new CharacterPreview();
+      this.preview.attach(stage, this.myDef(this.draft || this.look()));
+    } else if (this.preview) {
+      this.preview.stop();
+    }
+
     // Portraits
     for (const cv of this.el.querySelectorAll('canvas[data-portrait]')) {
       const def = this._portraits[+cv.dataset.portrait];
@@ -549,6 +561,17 @@ export class Menus {
   }
 
   screen_main() {
+    const done = completedDifficulties();
+    const earned = unlockedCount();
+    const pct = Math.round((earned / ACHIEVEMENTS.length) * 100);
+    const run = activeRun();
+    const me = this.look();
+
+    // A ring of pips, one per difficulty, filled as each season is cleared.
+    // The headline tile should say where you are up to without being read.
+    const pips = DIFFICULTIES.map((d) => `<i class="${
+      done.includes(d) ? 'on' : ''}" title="${DIFFICULTY_NAME[d]}"></i>`).join('');
+
     return `<div class="menu-panel wide title-panel">
       <div class="brand">
         <div class="brand-mark"></div>
@@ -557,35 +580,61 @@ export class Menus {
           <p class="tagline">Dink. Drive. Destroy.</p>
         </div>
       </div>
-      <div class="menu-body">
-        <div class="menu-grid">
-          <button class="big" data-act="nav" data-val="season">
-            <strong>Season</strong><span>${this.seasonTagline()}</span>
-          </button>
-          <button class="big" data-act="route" data-val="local">
-            <strong>Exhibition</strong><span>One match against the CPU</span>
-          </button>
-          <button class="big" data-act="route" data-val="host">
-            <strong>Host Online</strong><span>Create a room and share the code</span>
-          </button>
-          <button class="big" data-act="route" data-val="join">
-            <strong>Join Online</strong><span>Enter a friend's room code</span>
-          </button>
-          <button class="big" data-act="editor" data-val="main">
-            <strong>My Player</strong><span>${escapeHtml(this.look().name)} \u2014 kit, paddle and cap</span>
-          </button>
-          <button class="big" data-act="nav" data-val="achievements">
-            <strong>Achievements</strong><span>${unlockedCount()} of ${ACHIEVEMENTS.length} earned</span>
-          </button>
-          <button class="big" data-act="nav" data-val="settings">
-            <strong>Settings</strong><span>Graphics, audio and feel</span>
-          </button>
-          <button class="big" data-act="nav" data-val="controls">
-            <strong>How to Play</strong><span>Controls and the rules that matter</span>
-          </button>
-        </div>
+      <div class="menu-body home">
+        <section class="home-sec">
+          <h3 class="sec-label">Play</h3>
+          <div class="home-row lead">
+            <button class="tile hero ${run ? 'live' : ''}" data-act="nav" data-val="season">
+              <strong>Season</strong>
+              <span>${this.seasonTagline()}</span>
+              <div class="pips">${pips}</div>
+            </button>
+            <button class="tile" data-act="route" data-val="local">
+              <strong>Exhibition</strong>
+              <span>One match against the CPU. Nothing at stake.</span>
+            </button>
+          </div>
+        </section>
+
+        <section class="home-sec">
+          <h3 class="sec-label">Online</h3>
+          <div class="home-row two">
+            <button class="tile" data-act="route" data-val="host">
+              <strong>Host a Room</strong>
+              <span>Create a room and share the code</span>
+            </button>
+            <button class="tile" data-act="route" data-val="join">
+              <strong>Join a Room</strong>
+              <span>Enter a friend's room code</span>
+            </button>
+          </div>
+        </section>
+
+        <section class="home-sec">
+          <h3 class="sec-label">Your player</h3>
+          <div class="home-row two">
+            <button class="tile face" data-act="editor" data-val="main">
+              <span class="tile-face" data-live></span>
+              <span class="tile-text">
+                <strong>${escapeHtml(me.name)}</strong>
+                <span>Name, kit, paddle and headwear</span>
+              </span>
+            </button>
+            <button class="tile" data-act="nav" data-val="achievements">
+              <strong>Achievements</strong>
+              <span>${earned} of ${ACHIEVEMENTS.length} earned</span>
+              <div class="tile-bar"><i style="width:${pct}%"></i></div>
+            </button>
+          </div>
+        </section>
       </div>
-      <div class="menu-foot"><span class="muted">Peer-to-peer. No account, no server, no install.</span></div>
+      <div class="menu-foot home-foot">
+        <span class="muted">Peer-to-peer. No account, no server, no install.</span>
+        <span class="home-links">
+          <button data-act="nav" data-val="controls">How to Play</button>
+          <button data-act="nav" data-val="settings">Settings</button>
+        </span>
+      </div>
     </div>`;
   }
 
@@ -650,7 +699,7 @@ export class Menus {
       <div class="menu-head"><h1>My Player</h1></div>
       <div class="menu-body creator">
         <div class="creator-preview">
-          ${this.portrait(def, 'big-portrait')}
+          <div class="live-stage" data-live></div>
           <div class="creator-name">${escapeHtml(d.name)}</div>
           <p class="muted fine">Everybody plays with the same stats. This is
             purely how you turn up.</p>
