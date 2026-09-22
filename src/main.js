@@ -17,7 +17,7 @@ import {
 } from './game/season.js';
 import { recordMatch, grant } from './game/achievements.js';
 import { buildCourt, buildSky } from './render/assets.js';
-import { getVenue } from './render/venues.js';
+import { getVenue, playableVenue } from './render/venues.js';
 import { venueForRung } from './game/season.js';
 
 // What clearing a season on each difficulty hands over. Written out rather
@@ -124,7 +124,14 @@ class App {
 
     // The court doubles as the menu backdrop, so it lives for the whole
     // session rather than being rebuilt per match.
-    this.venueId = settings.get('venue');
+    //
+    // Clamped once, here, rather than at each of the five places the setting
+    // is read. Courts only ever unlock, never lock again, so a choice that is
+    // out of reach at boot is out of reach for the session -- and writing the
+    // fallback back means a save from before the courts were gated stops
+    // asking for one it cannot have.
+    this.venueId = playableVenue(settings.get('venue'), completedDifficulties());
+    if (this.venueId !== settings.get('venue')) settings.set('venue', this.venueId);
     this.buildScene();
 
     this.game = null;

@@ -33,6 +33,7 @@ export const VENUES = [
   },
   {
     id: 'forest',
+    unlock: 'easy',
     name: 'Hollow Pines',
     blurb: 'A clearing somebody paved. The trees lean in and the mist sits low.',
     court: { surface: '#35585f', light: '#4a7a83', dark: '#1e3940' },
@@ -56,6 +57,7 @@ export const VENUES = [
   },
   {
     id: 'desert',
+    unlock: 'normal',
     name: 'Dust Bowl',
     blurb: 'Hard court, harder sun. The wind keeps redecorating.',
     court: { surface: '#b5643a', light: '#d4875a', dark: '#7d3f22' },
@@ -77,6 +79,7 @@ export const VENUES = [
   },
   {
     id: 'marsh',
+    unlock: 'hard',
     name: 'Tidewater',
     blurb: 'Built on a boardwalk over the reeds. Do not go looking for the ball.',
     court: { surface: '#2f6e6b', light: '#48908c', dark: '#1a4745' },
@@ -104,6 +107,7 @@ export const VENUES = [
   },
   {
     id: 'championship',
+    unlock: 'extreme',
     name: 'Centre Court',
     blurb: 'Deep blue, full house, every seat sold. This is the one that counts.',
     court: { surface: '#1d3a7a', light: '#2f55a8', dark: '#122452' },
@@ -147,6 +151,39 @@ export const VENUE_BY_ID = Object.fromEntries(VENUES.map((v) => [v.id, v]));
 export const DEFAULT_VENUE = 'rec';
 
 export function getVenue(id) { return VENUE_BY_ID[id] || VENUE_BY_ID[DEFAULT_VENUE]; }
+
+// ---- who can play where ----------------------------------------------------
+//
+// Only the rec courts are open at the start. The other four are earned by
+// clearing a season, and clearing one opens its court AND everything below
+// it -- somebody who walks straight into Extreme and wins gets all five,
+// rather than being sent back to tick off the easy ones they have plainly
+// outgrown.
+//
+// This gates the courts you CHOOSE: exhibition and the online lobby. A season
+// sends you where the ladder says, unlocked or not, which is the point -- the
+// first time you see Centre Court should be the final of a season, and then
+// you know what you are playing for.
+//
+// The order lives here rather than coming from season.js because a venue is
+// pure data and importing the season would make a cycle out of it.
+const UNLOCK_ORDER = ['easy', 'normal', 'hard', 'extreme'];
+
+export function venueUnlocked(id, completed = []) {
+  const v = VENUE_BY_ID[id];
+  if (!v || !v.unlock) return true;
+  const need = UNLOCK_ORDER.indexOf(v.unlock);
+  return completed.some((d) => UNLOCK_ORDER.indexOf(d) >= need);
+}
+
+/**
+ * `id` if it can be played right now, the rec courts if it cannot. Unknown
+ * ids fall back too: this is what saved settings and a peer's lobby message
+ * both go through, and neither is trusted to name a court that exists.
+ */
+export function playableVenue(id, completed = []) {
+  return venueUnlocked(id, completed) ? getVenue(id).id : DEFAULT_VENUE;
+}
 
 // ---- light -----------------------------------------------------------------
 //

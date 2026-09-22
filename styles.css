@@ -488,12 +488,18 @@ html, body {
   min-width: 0;
   display: flex;
   align-items: center;
-  gap: 7px;
-  padding: 6px 8px 6px 6px;
+  gap: 6px;
+  padding: 6px 7px 6px 6px;
   font-size: 12px;
   font-weight: 800;
   cursor: pointer;
 }
+/* Swatch, then a text column. The requirement goes on a second line rather
+   than beside the name: at three across, a name and a difficulty on one row
+   left "Centre Court" reading as "Centr...". A min-height keeps the locked
+   and unlocked cards the same size, so the grid does not go ragged. */
+.venue-card { min-height: 42px; }
+.venue-text { display: flex; flex-direction: column; min-width: 0; gap: 1px; }
 .venue-card strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* The blurb belongs to the grid above it, but sitting flush against the
    buttons it read as a caption on the bottom row rather than on the
@@ -502,6 +508,18 @@ html, body {
 .venue-card.on { background: var(--court); color: var(--line); }
 .venue-card.on:hover { background: var(--court-dark); }
 .venue-card:disabled { opacity: 0.55; cursor: default; }
+/* A locked court keeps its swatch and its name -- you should be able to see
+   what you are playing for -- and says which season opens it. */
+.venue-card.locked { opacity: 0.5; cursor: not-allowed; }
+.venue-card.locked .venue-swatch { filter: grayscale(0.7); }
+.venue-card em {
+  font-style: normal;
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--flag);
+  white-space: nowrap;
+}
 /* Three bands: the court, its kitchen and the ground around it. That is
    enough to tell five venues apart without rendering five thumbnails. */
 .venue-swatch {

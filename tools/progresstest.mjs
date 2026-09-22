@@ -304,6 +304,47 @@ const ids = (list) => list.map((a) => a.id).sort();
       `${d}: the season finishes on the championship court`);
     for (const id of ladder) check(ids.has(id), `${d}: unknown venue ${id} on the ladder`);
   }
+
+  // ---- who can play where --------------------------------------------------
+  const { venueUnlocked, playableVenue } = await import('../src/render/venues.js');
+
+  // Nothing but the rec courts on a fresh save.
+  for (const v of VENUES) {
+    eq(venueUnlocked(v.id, []), v.id === 'rec',
+      `${v.id}: ${v.id === 'rec' ? 'open' : 'locked'} before any season is cleared`);
+  }
+
+  // Clearing one season opens its court and every court below it, so going
+  // straight at the hardest ladder does not leave easier courts locked.
+  const TIER = ['easy', 'normal', 'hard', 'extreme'];
+  const BY_TIER = { easy: 'forest', normal: 'desert', hard: 'marsh', extreme: 'championship' };
+  for (let i = 0; i < TIER.length; i++) {
+    const cleared = [TIER[i]];
+    for (let j = 0; j < TIER.length; j++) {
+      const id = BY_TIER[TIER[j]];
+      eq(venueUnlocked(id, cleared), j <= i,
+        `clearing ${TIER[i]} ${j <= i ? 'opens' : 'leaves locked'} ${id}`);
+    }
+    eq(venueUnlocked('rec', cleared), true, `clearing ${TIER[i]} keeps the rec courts open`);
+  }
+
+  // Every combination of cleared seasons: a court is open exactly when some
+  // cleared season sits at or above it.
+  for (let mask = 0; mask < 16; mask++) {
+    const cleared = TIER.filter((_, i) => mask & (1 << i));
+    const best = cleared.length ? Math.max(...cleared.map((d) => TIER.indexOf(d))) : -1;
+    for (let j = 0; j < TIER.length; j++) {
+      eq(venueUnlocked(BY_TIER[TIER[j]], cleared), j <= best,
+        `[${cleared.join()}] vs ${BY_TIER[TIER[j]]}`);
+    }
+  }
+
+  // A locked choice -- an old save, or a peer naming one -- falls back rather
+  // than putting somebody on a court they have not earned.
+  eq(playableVenue('championship', []), 'rec', 'a locked choice falls back to rec');
+  eq(playableVenue('championship', ['extreme']), 'championship', 'an earned choice stands');
+  eq(playableVenue('rec', []), 'rec', 'the rec courts always stand');
+  eq(playableVenue('nonsense', []), 'rec', 'an unknown choice falls back to rec');
 }
 
 console.log(`${checks} checks, ${failures.length} failed`);

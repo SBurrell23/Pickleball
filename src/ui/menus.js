@@ -7,7 +7,9 @@ import {
   avatarDef, cleanName, optionsFor, findOption, isUnlocked, loadLook, saveLook,
 } from '../game/avatar.js';
 import { cssHex } from '../game/color.js';
-import { VENUES, getVenue } from '../render/venues.js';
+import {
+  VENUES, getVenue, venueUnlocked, playableVenue,
+} from '../render/venues.js';
 import { seasonLength } from '../game/enemies.js';
 import {
   DIFFICULTIES, DIFFICULTY_NAME, START_LIVES, MAX_LIVES, bonusAt,
@@ -207,6 +209,9 @@ export class Menus {
         this.render();
         break;
       case 'venue':
+        // The button is disabled, but the setting is also reachable from an
+        // older save, so the guard lives with the write rather than the click.
+        if (!venueUnlocked(val, completedDifficulties())) break;
         this.settings.set('venue', val);
         this.cb.onVenue?.(val);
         this.render();
@@ -329,19 +334,38 @@ export class Menus {
   // Swatches rather than names alone: a court is a look, and the two colours
   // that matter are the surface and the kitchen.
   venuePicker(venueId, disabled = false) {
-    const cards = VENUES.map((v) => `
-      <button class="venue-card ${v.id === venueId ? 'on' : ''}"
-        data-act="venue" data-val="${v.id}" ${disabled ? 'disabled' : ''}
-        title="${escapeAttr(v.blurb)}">
+    const completed = completedDifficulties();
+    // Locked courts are still shown, with the season that opens them. Hiding
+    // them would hide the reason to play one.
+    const cards = VENUES.map((v) => {
+      const locked = !venueUnlocked(v.id, completed);
+      return `
+      <button class="venue-card ${v.id === venueId ? 'on' : ''} ${locked ? 'locked' : ''}"
+        data-act="venue" data-val="${v.id}" ${disabled || locked ? 'disabled' : ''}
+        title="${locked
+          ? `Locked — clear the ${DIFFICULTY_NAME[v.unlock]} season`
+          : escapeAttr(v.blurb)}">
         <span class="venue-swatch" style="--a:${v.court.surface};--b:${v.kitchen.surface};--c:${v.ground.base}"></span>
-        <strong>${escapeHtml(v.name)}</strong>
-      </button>`).join('');
+        <span class="venue-text">
+          <strong>${escapeHtml(v.name)}</strong>
+          ${locked ? `<em>Clear ${DIFFICULTY_NAME[v.unlock]}</em>` : ''}
+        </span>
+      </button>`;
+    }).join('');
+    const locked = VENUES.filter((v) => !venueUnlocked(v.id, completed)).length;
     return `
       <div class="picker">
         <span class="picker-label">Court</span>
         <div class="venues">${cards}</div>
       </div>
-      <p class="muted fine venue-blurb">${escapeHtml(getVenue(venueId).blurb)}</p>`;
+      <p class="muted fine venue-blurb">${escapeHtml(getVenue(venueId).blurb)}${
+        locked ? ` ${locked} more court${locked === 1 ? ' is' : 's are'}
+          waiting behind a cleared season.` : ''}</p>`;
+  }
+
+  /** The chosen court, or the rec courts if the choice is no longer allowed. */
+  venueChoice() {
+    return playableVenue(this.settings.get('venue'), completedDifficulties());
   }
 
   // ---- exhibition ---------------------------------------------------------
@@ -366,7 +390,7 @@ export class Menus {
             data-act="difficulty" data-val="${v}">${DIFFICULTY_NAME[v]}</button>`).join('')}
         </div>
       </div>
-      ${this.venuePicker(this.settings.get('venue'))}
+      ${this.venuePicker(this.venueChoice())}
     `, `
       <button data-act="back" data-val="main">Back</button>
       <button data-act="editor" data-val="exhibition">My Player</button>
