@@ -11,10 +11,33 @@
 // context per canvas would be wasteful for something this small.
 
 import * as THREE from '../../vendor/three.module.js';
-import { buildCharacter } from '../render/character.js';
+import { buildCharacter, animateCharacter } from '../render/character.js';
+import { SWINGSTATE } from '../game/sim.js';
 
-const FPS = 30;                 // a turntable does not need sixty
-const SPIN = 0.55;              // radians a second
+const FPS = 30;                 // a menu figure does not need sixty
+
+// Turned a little off square, so the figure reads as three-quarter rather than
+// as a mugshot. It does not spin: a rotating model means waiting for the front
+// to come back round before you can judge a colour you just changed.
+const FACING = 0.42;            // radians
+
+// The sim state a character animates from. The preview has no match to read
+// one out of, so it hands over a player who is standing still and not
+// swinging -- which is exactly the pose the menu wants.
+//
+// `paddleLateral` is where the cursor would be, and it does two jobs at once:
+// it swings the paddle out to one side of the body, and it twists the face by
+// about the same angle. Leaving it out rests the paddle on the forehand side,
+// which puts the face edge-on to a camera looking at a figure turned by
+// FACING -- the paddle became a sliver, which is no use to somebody picking
+// its colour. Aiming the other way instead turns the face back towards the
+// camera, to within about fifteen degrees of square.
+const STANDING = Object.freeze({
+  vx: 0, vz: 0, facing: 0, dashT: 0,
+  swingSide: 1, swingState: SWINGSTATE.IDLE, swingT: 0,
+  charging: false, chargeVis: 0,
+  paddleLateral: -0.72, paddleForward: 0.5,
+});
 
 export class CharacterPreview {
   constructor() {
@@ -38,8 +61,9 @@ export class CharacterPreview {
     this.scene.add(rim);
 
     this.camera = new THREE.PerspectiveCamera(30, 1, 0.1, 40);
-    this.turntable = new THREE.Group();
-    this.scene.add(this.turntable);
+    this.stage = new THREE.Group();
+    this.stage.rotation.y = FACING;
+    this.scene.add(this.stage);
 
     this.rig = null;
     this.defKey = null;
@@ -65,14 +89,19 @@ export class CharacterPreview {
     if (key === this.defKey && this.rig) return;
     this.defKey = key;
     if (this.rig) {
-      this.turntable.remove(this.rig);
+      this.stage.remove(this.rig);
       disposeRig(this.rig);
     }
     this.rig = buildCharacter(def);
     // The rig is built around the player's feet; drop it so the figure is
     // centred in frame rather than sitting at the bottom of it.
     this.rig.position.y = -0.62;
-    this.turntable.add(this.rig);
+    this.stage.add(this.rig);
+    // A fresh paddle starts at the rig's origin -- down by the feet, looking
+    // like the figure is mounted on a stick -- and only reaches the hand
+    // because animateCharacter damps it there over about a second. Run that
+    // settling before the first frame is drawn so nobody sees the journey.
+    for (let i = 0; i < 90; i++) animateCharacter(this.rig, STANDING, 1 / 60, 0);
   }
 
   resize(host) {
@@ -102,18 +131,17 @@ export class CharacterPreview {
   _loop(now) {
     if (!this.running) return;
     requestAnimationFrame(this._loop);
-    // A menu turntable has no business running at the display's refresh rate.
+    // A menu figure has no business running at the display's refresh rate.
     const dt = Math.min(0.1, (now - this.last) / 1000);
     this.last = now;
     this.accum += dt;
     if (this.accum < 1 / FPS) return;
+    const step = this.accum;
     this.accum = 0;
     if (!this.canvas.parentElement || !this.canvas.isConnected) return;
-    this.turntable.rotation.y += dt * SPIN;
-    if (this.rig) {
-      // The same idle float the characters have on court.
-      this.rig.position.y = -0.62 + Math.sin(now / 620) * 0.018;
-    }
+    // The same animation the match runs, so the idle bob, the paddle drift and
+    // the grip are all the ones the player will actually see on court.
+    if (this.rig) animateCharacter(this.rig, STANDING, step, now / 1000);
     this.renderer.render(this.scene, this.camera);
   }
 

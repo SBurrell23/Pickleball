@@ -2,6 +2,7 @@ import { DEFAULTS } from '../core/settings.js';
 import { drawPortrait } from './portrait.js';
 import { CharacterPreview } from './preview.js';
 import { CURSOR_STYLES, CURSOR_COLORS, drawReticle } from './reticle.js';
+import { icon } from './icons.js';
 import {
   avatarDef, cleanName, optionsFor, findOption, isUnlocked, loadLook, saveLook,
 } from '../game/avatar.js';
@@ -165,6 +166,8 @@ export class Menus {
     // data forward is what carried "Creating room..." out of the connecting
     // screen and left it sitting under the lobby's player list.
     const moved = this.screen !== name;
+    // A half-answered confirmation must not be waiting when you come back.
+    if (moved) this.confirmQuit = false;
     this.screen = name;
     this.data = moved
       ? { ...this.data, status: '', error: '', ...data }
@@ -228,7 +231,25 @@ export class Menus {
       // ---- season ---------------------------------------------------------
       case 'seasonStart': this.cb.onSeasonStart?.(val); break;
       case 'seasonPlay': this.cb.onSeasonPlay?.(); break;
-      case 'seasonQuit': this.cb.onSeasonQuit?.(); break;
+      case 'seasonQuit': {
+        // Abandoning wipes the run, and there is no undo. Worth a question --
+        // but only once there is something to lose: on a fresh ladder with
+        // nobody beaten yet, the prompt is just a click in the way.
+        const run = activeRun();
+        if (run && run.index > 0 && !this.confirmQuit) {
+          this.confirmQuit = true;
+          this.render();
+          break;
+        }
+        this.confirmQuit = false;
+        this.cb.onSeasonQuit?.();
+        break;
+      }
+      case 'seasonQuitCancel':
+        this.audio.uiBack();
+        this.confirmQuit = false;
+        this.render();
+        break;
 
       case 'achieveTab': this.achieveTab = val; this.render(); break;
       case 'settingsTab': this.settingsTab = val; this.render(); break;
@@ -585,12 +606,12 @@ export class Menus {
           <h3 class="sec-label">Play</h3>
           <div class="home-row lead">
             <button class="tile hero ${run ? 'live' : ''}" data-act="nav" data-val="season">
-              <strong>Season</strong>
+              <strong>${icon('trophy')}Season</strong>
               <span>${this.seasonTagline()}</span>
               <div class="pips">${pips}</div>
             </button>
             <button class="tile" data-act="route" data-val="local">
-              <strong>Exhibition</strong>
+              <strong>${icon('paddle')}Exhibition</strong>
               <span>One match against the CPU. Nothing at stake.</span>
             </button>
           </div>
@@ -600,11 +621,11 @@ export class Menus {
           <h3 class="sec-label">Online</h3>
           <div class="home-row two">
             <button class="tile" data-act="route" data-val="host">
-              <strong>Host a Room</strong>
+              <strong>${icon('host')}Host a Room</strong>
               <span>Create a room and share the code</span>
             </button>
             <button class="tile" data-act="route" data-val="join">
-              <strong>Join a Room</strong>
+              <strong>${icon('join')}Join a Room</strong>
               <span>Enter a friend's room code</span>
             </button>
           </div>
@@ -621,7 +642,7 @@ export class Menus {
               </span>
             </button>
             <button class="tile" data-act="nav" data-val="achievements">
-              <strong>Achievements</strong>
+              <strong>${icon('medal')}Achievements</strong>
               <span>${earned} of ${ACHIEVEMENTS.length} earned</span>
               <div class="tile-bar"><i style="width:${pct}%"></i></div>
             </button>
@@ -631,8 +652,8 @@ export class Menus {
       <div class="menu-foot home-foot">
         <span class="muted">Peer-to-peer. No account, no server, no install.</span>
         <span class="home-links">
-          <button data-act="nav" data-val="controls">How to Play</button>
-          <button data-act="nav" data-val="settings">Settings</button>
+          <button data-act="nav" data-val="controls">${icon('book')}How to Play</button>
+          <button data-act="nav" data-val="settings">${icon('cog')}Settings</button>
         </span>
       </div>
     </div>`;
@@ -800,6 +821,18 @@ export class Menus {
         <button class="primary" data-act="nav" data-val="scout">
           Face ${escapeHtml(rungs[run.index].def.name)}</button>
       </div>
+      ${this.confirmQuit ? `<div class="veil">
+        <div class="ask">
+          <strong>Abandon this run?</strong>
+          <p>${run.index === 1 ? 'One rival' : `${run.index} rivals`} beaten on
+            ${DIFFICULTY_NAME[run.difficulty]}. The ladder is wiped and you
+            start again from the bottom.</p>
+          <div class="ask-row">
+            <button data-act="seasonQuitCancel">Keep Playing</button>
+            <button class="danger" data-act="seasonQuit">Abandon Run</button>
+          </div>
+        </div>
+      </div>` : ''}
     </div>`;
   }
 

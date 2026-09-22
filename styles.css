@@ -545,11 +545,26 @@ html, body {
   cursor: pointer;
 }
 .tile strong {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font-size: 15px;
   font-weight: 900;
   letter-spacing: 0.02em;
   text-transform: uppercase;
 }
+
+/* The icons take `currentColor` and their size from here, so a tile that
+   inverts on hover takes its icon with it, and nothing has to be redrawn to
+   fit a new slot. */
+.ico {
+  width: 19px;
+  height: 19px;
+  flex: none;
+  overflow: visible;   /* round caps sit a hair outside the 24 box */
+}
+.home-links button { display: inline-flex; align-items: center; gap: 7px; }
+.home-links .ico { width: 15px; height: 15px; }
 .tile > span {
   font-size: 11.5px;
   font-weight: 700;
@@ -558,18 +573,23 @@ html, body {
 }
 .tile:hover > span { color: var(--ink); }
 
-/* The headline. Bigger type and the yellow of the ball, because it is the
-   mode the whole game is built around. */
+/* The headline. Bigger type and court blue, because it is the mode the whole
+   game is built around -- and because the ball yellow it used to wear is the
+   same yellow as the progress bar and the pips, so it read as one more meter
+   rather than as the way in. */
 .tile.hero {
-  background: var(--ball);
+  background: var(--court);
   padding: 15px 17px;
   justify-content: center;
+  color: var(--cream);
 }
-.tile.hero strong { font-size: 21px; }
-.tile.hero > span { color: var(--ink); opacity: 0.78; }
-.tile.hero:hover { background: var(--ball-deep); }
+.tile.hero strong { font-size: 21px; gap: 10px; }
+.tile.hero .ico { width: 25px; height: 25px; }
+.tile.hero > span { color: var(--cream); opacity: 0.86; }
+.tile.hero:hover { background: var(--court-dark); }
+.tile.hero:hover > span { color: var(--cream); }
 /* A run in progress is worth shouting about. */
-.tile.hero.live { box-shadow: 0 6px 0 var(--ink), 0 0 0 3px var(--kitchen); }
+.tile.hero.live { box-shadow: 0 6px 0 var(--ink), 0 0 0 3px var(--ball); }
 
 .pips { display: flex; gap: 5px; margin-top: 7px; }
 .pips i {
@@ -578,7 +598,7 @@ html, body {
   border: 2px solid var(--ink);
   background: rgba(16, 32, 44, 0.16);
 }
-.pips i.on { background: var(--kitchen); }
+.pips i.on { background: var(--ball); }
 
 /* Your own character, on the button that edits it. */
 .tile.face { flex-direction: row; align-items: center; gap: 11px; }
@@ -596,11 +616,16 @@ canvas.preview-canvas { width: 100%; height: 100%; display: block; }
 }
 .tile-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
 .tile-text strong {
+  /* Back to a block: `.tile strong` turns these into flex rows to seat an
+     icon, and a flex container has no text to ellipsise. This one carries a
+     name somebody typed, so the ellipsis matters more than the icon slot. */
+  display: block;
   font-size: 15px;
   font-weight: 900;
   text-transform: uppercase;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 .tile-text > span { font-size: 11.5px; font-weight: 700; color: var(--ink-soft); }
 
@@ -644,6 +669,7 @@ canvas.preview-canvas { width: 100%; height: 100%; display: block; }
 .menu-layer.open { display: flex; }
 
 .menu-panel {
+  position: relative;          /* the confirm sheet anchors to this */
   width: min(560px, 100%);
   max-height: calc(100vh - 48px);
   display: flex;
@@ -654,6 +680,53 @@ canvas.preview-canvas { width: 100%; height: 100%; display: block; }
   box-shadow: var(--shadow);
   overflow: hidden;
 }
+
+/* A confirmation, laid over the screen that asked for it rather than in a
+   window of its own. The panel already clips to its own rounded border, so
+   the veil covers exactly the thing being interrupted and nothing else. */
+.veil {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(16, 32, 44, 0.62);
+  animation: veil-in 0.14s ease-out;
+  z-index: 5;
+}
+@keyframes veil-in { from { opacity: 0; } to { opacity: 1; } }
+
+.ask {
+  width: min(400px, 100%);
+  padding: 20px 22px 18px;
+  background: var(--cream);
+  border: 4px solid var(--ink);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+.ask strong {
+  display: block;
+  font-size: 19px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+.ask p {
+  margin: 7px 0 0;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.45;
+  color: var(--ink-soft);
+}
+.ask-row {
+  display: flex;
+  gap: 9px;
+  margin-top: 16px;
+  justify-content: flex-end;
+}
+button.danger { background: var(--flag); color: var(--cream); }
+button.danger:hover { background: #d84a3c; }
 
 /* Only on first appearance -- re-rendering the same screen must not replay it. */
 .menu-panel.enter { animation: serve 0.26s cubic-bezier(.2, 1.4, .4, 1); }
