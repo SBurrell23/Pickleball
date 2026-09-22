@@ -729,6 +729,7 @@ export class Sim {
       beforeBounce,
       illegalDrive: drivingOffKitchen,
       choke,
+      accuracy: pend.accuracy ?? 0,
     });
   }
 

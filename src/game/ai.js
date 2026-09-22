@@ -173,7 +173,7 @@ function fireSwing(sim, p, st, tune) {
   });
   sim.queueSwing(p.idx, {
     shot, mode: res.mode, power: res.power, scatter: res.scatter,
-    quality: res.quality, choke: res.choke,
+    quality: res.quality, choke: res.choke, accuracy: res.accuracy,
     ax: st.target.x, az: st.target.z, rewind: 0,
   });
 }
@@ -206,7 +206,7 @@ export function updateBot(sim, p, st, dt) {
         const res = releaseSwing(st.sw, tune);
         sim.queueSwing(p.idx, {
           shot: SHOT.SERVE, mode: res.mode, power: res.power, scatter: res.scatter,
-          quality: res.quality, choke: res.choke,
+          quality: res.quality, choke: res.choke, accuracy: res.accuracy,
           ax: st.target.x, az: st.target.z, rewind: 0,
         });
         st.committed = true;

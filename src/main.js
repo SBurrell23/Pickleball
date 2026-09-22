@@ -232,6 +232,7 @@ class App {
       const online = this.game.mode !== 'local';
       this.menus.show('results', {
         won: result.won, score: result.score, stats: result.stats,
+        players: result.players,
         canRematch: !online,
         // Online players should be able to run it back without re-sharing a
         // room code, so the lobby is one click away.

@@ -785,6 +785,80 @@ ul.rules b { color: var(--ink); }
   margin: 10px 0 22px;
 }
 
+/* End-of-match scorecard: every player on the court, one row each. */
+.scorecard {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  margin-bottom: 8px;
+}
+.scorecard thead th {
+  font-size: 10px;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--ink-soft);
+  text-align: right;
+  padding: 0 0 6px 8px;
+  white-space: nowrap;
+}
+.scorecard thead th.who { text-align: left; padding-left: 0; }
+.scorecard tbody tr { border-top: 2px dashed rgba(16, 32, 44, 0.16); }
+.scorecard tbody tr.won { background: rgba(228, 239, 63, 0.16); }
+.scorecard tbody tr.me th.who span { color: var(--kitchen-dark); }
+.scorecard th.who {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 0;
+  font-weight: 900;
+  text-align: left;
+}
+.scorecard th.who span { max-width: 9ch; overflow: hidden; text-overflow: ellipsis; }
+.scorecard th.who em {
+  font-style: normal;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--cream);
+  background: var(--ink);
+  border-radius: 999px;
+  padding: 2px 6px;
+}
+.scorecard canvas.mini { width: 26px; height: 30px; flex: none; }
+.scorecard td {
+  text-align: right;
+  padding: 5px 0 5px 8px;
+  font-weight: 800;
+  color: var(--ink-soft);
+  white-space: nowrap;
+}
+.scorecard td.bad { color: var(--flag); }
+.scorecard .acc { color: var(--ink); }
+.scorecard tbody td.acc { font-weight: 900; }
+p.fine { font-size: 11px !important; margin-bottom: 14px !important; }
+
+/* Last resort on a narrow phone: the card can be swiped sideways rather than
+   silently clipping the accuracy column off the edge of the panel. */
+.scorecard-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.scorecard thead .sm { display: none; }
+
+@media (max-width: 520px) {
+  .scorecard { font-size: 11.5px; }
+  .scorecard canvas.mini { display: none; }
+  .scorecard thead th { font-size: 9px; letter-spacing: 0.04em; padding-left: 5px; }
+  .scorecard td { padding-left: 5px; }
+  .scorecard th.who { gap: 5px; }
+  .scorecard th.who span { max-width: 6ch; }
+  .scorecard th.who em { font-size: 8px; padding: 2px 4px; }
+  /* "Accuracy" is the widest header by some way, and losing that column off
+     the edge of a phone would hide the one number people came for. */
+  .scorecard thead .lg { display: none; }
+  .scorecard thead .sm { display: inline; }
+}
+
 .spinner {
   width: 40px; height: 40px;
   margin: 12px auto 18px;

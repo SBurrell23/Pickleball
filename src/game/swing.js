@@ -99,6 +99,16 @@ export function sweetZone(sw, tuning) {
   };
 }
 
+// How cleanly a release was struck, 0..1. Anything inside the perfect band
+// scores a flat 100%, and it falls away to nothing at the outer edge of the
+// ok shoulder -- so a player who hits perfect every time averages exactly
+// 100, which is what the end-of-match accuracy column promises.
+function accuracyAt(d, zone) {
+  if (d <= zone.perfect) return 1;
+  const span = Math.max(1e-4, zone.okHalf - zone.perfect);
+  return Math.max(0, 1 - (d - zone.perfect) / span);
+}
+
 function gradeDistance(d, zone) {
   if (d <= zone.perfect) return QUALITY.PERFECT;
   if (d <= zone.half) return QUALITY.GOOD;
@@ -121,16 +131,24 @@ export function releaseSwing(sw, tuning) {
   // moment it fills, and from there the shot is already lost.
   const choke = sw.t > 1;
 
+  let accuracy;
+
   if (choke) {
     quality = QUALITY.WEAK;
     powerFrac = 0.30;
+    accuracy = 0;
   } else if (sw.held < SWING.MIN_HOLD) {
     // A tap is a controlled block rather than a failed drive.
     quality = QUALITY.OK;
     powerFrac = 0.34;
+    // There is no timing to grade on a block, so score it as whatever a shot
+    // sitting in the middle of the ok shoulder would get.
+    accuracy = accuracyAt((zone.half + zone.okHalf) * 0.5, zone);
   } else {
-    quality = gradeDistance(Math.abs(sw.t - zone.center), zone);
+    const d = Math.abs(sw.t - zone.center);
+    quality = gradeDistance(d, zone);
     powerFrac = Math.min(1, sw.t);
+    accuracy = accuracyAt(d, zone);
   }
   // The quick bar buys its speed with a hard ceiling on pace.
   if (sw.mode === MODE.QUICK) powerFrac *= SWING.QUICK_POWER;
@@ -139,6 +157,7 @@ export function releaseSwing(sw, tuning) {
     mode: sw.mode,
     quality,
     choke,
+    accuracy,
     powerFrac,
     power: powerFrac * QUALITY_POWER[quality] * tuning.powerScale,
     scatter: QUALITY_SCATTER[quality] * tuning.scatterScale,

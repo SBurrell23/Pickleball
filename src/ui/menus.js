@@ -660,8 +660,35 @@ export class Menus {
     const d = this.data;
     const rows = (d.stats || []).map(([k, v]) =>
       `<tr><th>${k}</th><td>${v}</td></tr>`).join('');
+    const players = d.players || [];
+    // Everyone on the court, not just you -- including the CPU, which is the
+    // only way to see what actually beat you.
+    const board = players.length ? `
+      <div class="scorecard-wrap"><table class="scorecard">
+        <thead><tr>
+          <th class="who">Player</th>
+          <th>Shots</th><th>Dinks</th><th>Drives</th><th>Lobs</th>
+          <th>Chokes</th>
+          <th class="acc"><span class="lg">Accuracy</span><span class="sm">Acc</span></th>
+        </tr></thead>
+        <tbody>${players.map((p) => `
+          <tr class="${p.you ? 'me' : ''}${p.won ? ' won' : ''}">
+            <th class="who">
+              <canvas data-char="${p.charId}" class="mini"></canvas>
+              <span>${escapeHtml(p.name)}</span>
+              ${p.you ? '<em>you</em>' : p.bot ? '<em>cpu</em>' : ''}
+            </th>
+            <td>${p.shots}</td><td>${p.dinks}</td><td>${p.drives}</td><td>${p.lobs}</td>
+            <td class="${p.chokes ? 'bad' : ''}">${p.chokes}</td>
+            <td class="acc">${Math.round(p.accuracy * 100)}%</td>
+          </tr>`).join('')}</tbody>
+      </table></div>
+      <p class="muted fine">Shots counts every ball struck, serves included.
+        Accuracy is all of them averaged &mdash; 100% is perfect timing every
+        time.</p>` : '';
     return this.frame(d.won ? 'You win' : 'You lose', `
       <div class="final-score">${d.score ? d.score.join(' - ') : ''}</div>
+      ${board}
       <table class="controls">${rows}</table>
     `, `
       <button data-act="quit">Menu</button>

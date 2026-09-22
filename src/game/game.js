@@ -74,6 +74,13 @@ export class Game {
     this.sim = new Sim({ ...config, players: roster });
     this.bots = this.sim.players.map((p) =>
       (p.bot ? createBotState(p.difficulty) : null));
+    // Per-player tallies for the end-of-match table. Built off the hit event,
+    // which every peer sees -- the host broadcasts them -- so all four columns
+    // agree on every screen without any extra traffic.
+    this.playerStats = this.sim.players.map(() => ({
+      shots: 0, serve: 0, dink: 0, drive: 0, lob: 0, smash: 0,
+      perfect: 0, chokes: 0, accSum: 0,
+    }));
 
     this.crowd = this.court ? this.court.getObjectByName('crowd') : null;
 
@@ -232,6 +239,7 @@ export class Game {
       scatter: res.scatter,
       quality: res.quality,
       choke: res.choke,
+      accuracy: res.accuracy,
       ax: this.aim.x,
       az: this.aim.z,
       rewind: 0,
@@ -476,6 +484,14 @@ export class Game {
       switch (e.type) {
         case 'hit': {
           this.stats.hits++;
+          const ps = this.playerStats[e.idx];
+          if (ps) {
+            ps.shots++;
+            if (ps[e.shot] !== undefined) ps[e.shot]++;
+            ps.accSum += e.accuracy ?? 0;
+            if (e.quality === 'perfect') ps.perfect++;
+            if (e.choke) ps.chokes++;
+          }
           const ch = getCharacter(this.sim.players[e.idx]?.charId);
           this.audio.paddleHit(e.power, e.quality);
           this.fx.hitEffect(e.pos, e.quality, e.power, ch.colors.primary);
@@ -565,11 +581,29 @@ export class Game {
     this.hud.message(won ? 'GAME!' : 'DEFEAT', 'big', 3);
     this.onFinish?.({
       won, score: e.score,
+      // Partners next to each other, and the winning side first, so the table
+      // reads the way the scoreline does.
+      players: this.sim.players
+        .map((p) => {
+          const st = this.playerStats[p.idx];
+          return {
+            name: p.name,
+            charId: p.charId,
+            team: p.team,
+            bot: p.bot,
+            you: p.idx === this.myIdx,
+            won: p.team === e.winner,
+            shots: st.shots,
+            dinks: st.dink,
+            drives: st.drive + st.smash,
+            lobs: st.lob,
+            chokes: st.chokes,
+            accuracy: st.shots ? st.accSum / st.shots : 0,
+          };
+        })
+        .sort((a, b) => (b.won - a.won) || (a.team - b.team)),
       stats: [
-        ['Shots hit', this.stats.hits],
-        ['Perfect timing', this.stats.perfect],
         ['Longest rally', this.stats.longest + ' shots'],
-        ['Faults', this.stats.faults],
       ],
     });
   }
