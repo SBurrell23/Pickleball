@@ -495,6 +495,8 @@ function seatingPlan() {
           y: 0.42 + r * 0.42,
           z: (along - 0.5) * COURT.HALF_L * 1.7,
           along: s > 0 ? along : 1 - along,
+          // Side banks look across the court, so their shoulders run down z.
+          shoulderZ: true,
         });
       }
     }
@@ -506,6 +508,8 @@ function seatingPlan() {
           y: endRowY(r),
           z: s * (APRON_Z + END_NEAR + r * 0.9),
           along: s > 0 ? along : 1 - along,
+          // End banks look up the court, so their shoulders run across x.
+          shoulderZ: false,
         });
       }
     }
@@ -540,7 +544,7 @@ function buildCrowd() {
   const sc = new THREE.Vector3(1, 1, 1);
   const seeds = [];
   let i = 0;
-  for (const { x, y, z, along } of seatingPlan()) {
+  for (const { x, y, z, along, shoulderZ } of seatingPlan()) {
     seeds.push({
       x, y, z,
       phase: Math.random() * 6.283,
@@ -559,6 +563,7 @@ function buildCrowd() {
       // a real one -- plus scatter, so the leading edge is ragged rather
       // than a marching line.
       wave: along + Math.random() * 0.22,
+      shoulderZ,
       // Not everyone gets out of their seat, and those who do are not
       // equally demonstrative.
       zeal: 0.55 + Math.random() * 0.45,
@@ -578,7 +583,10 @@ function buildCrowd() {
     // identity matrices puts that sphere at the origin -- so the whole mesh
     // gets frustum-culled the moment the camera looks away from centre court.
     for (let a = 0; a < 2; a++) {
-      m.compose(new THREE.Vector3(x + (a ? ARM_OUT : -ARM_OUT), y + 0.48, z), q, sc);
+      const off = a ? ARM_OUT : -ARM_OUT;
+      m.compose(new THREE.Vector3(
+        x + (shoulderZ ? 0 : off), y + 0.48, z + (shoulderZ ? off : 0)
+      ), q, sc);
       arms.setMatrixAt(i * 2 + a, m);
       arms.setColorAt(i * 2 + a, skinCol);
     }
@@ -645,6 +653,11 @@ export function animateCrowd(group, dt, excitement = 0) {
   const sc = new THREE.Vector3(1, 1, 1);
   const one = new THREE.Vector3(1, 1, 1);
   const v = new THREE.Vector3();
+  // A spectator leans and throws their arms up in the plane across their own
+  // shoulders. Those shoulders point down z in the side banks and across x in
+  // the end banks, so the two sets of stands rotate about different axes --
+  // use one for both and half the arena cheers side-on to the court.
+  const X = new THREE.Vector3(1, 0, 0);
   const Z = new THREE.Vector3(0, 0, 1);
 
   for (let i = 0; i < d.count; i++) {
@@ -665,22 +678,28 @@ export function animateCrowd(group, dt, excitement = 0) {
     // rise, and the jumping, which is the hop scaled well past anything
     // excitement alone produces. Together they read as "they just won" rather
     // than "the crowd is into this".
-    const lift = lift0 + cheer * 0.26 + hop * s.amp * (drive + cheer * 2.9);
+    const lift = lift0 + cheer * 0.22 + hop * s.amp * (drive + cheer * 2.1);
 
-    const bx = s.x + sway;
+    // Sideways movement runs along the shoulder line, whichever way this seat
+    // is turned. `sh` is 1 on the axis the shoulders lie on, 0 on the other.
+    const shx = s.shoulderZ ? 0 : 1;
+    const shz = s.shoulderZ ? 1 : 0;
+    const bx = s.x + sway * shx;
+    const bz = s.z + sway * shz;
     const by = s.y + 0.3 + lift;
 
     if (cheer <= 0.02) {
       // Nothing happening: skip the pose maths entirely. This is the path the
       // crowd is on for all but a few seconds of a match.
-      v.set(bx, by, s.z);
+      v.set(bx, by, bz);
       m.compose(v, IDENT_Q, one);
       d.bodies.setMatrixAt(i, m);
-      v.set(s.x + sway * 1.25, s.y + 0.62 + lift, s.z);
+      v.set(s.x + sway * 1.25 * shx, s.y + 0.62 + lift, s.z + sway * 1.25 * shz);
       m.compose(v, IDENT_Q, one);
       d.heads.setMatrixAt(i, m);
       for (let a = 0; a < 2; a++) {
-        v.set(bx + (a ? ARM_OUT : -ARM_OUT), by + 0.18, s.z);
+        const off = a ? ARM_OUT : -ARM_OUT;
+        v.set(bx + off * shx, by + 0.18, bz + off * shz);
         m.compose(v, IDENT_Q, one);
         d.arms.setMatrixAt(i * 2 + a, m);
       }
@@ -692,17 +711,27 @@ export function animateCrowd(group, dt, excitement = 0) {
     // jump reads as a capsule sliding up and down a rail.
     const stretch = 1 + cheer * 0.30 * (Math.abs(1 - 2 * u) - 0.45);
     const tilt = Math.sin(t * s.lean * 1.6 + s.phase) * cheer * 0.17;
-    q.setFromAxisAngle(Z, tilt);
+    // Rotating about z swings toward +x; about x, toward +z -- hence the
+    // opposite sign, so both banks throw their arms out across their own
+    // shoulders instead of one of them waving at the car park.
+    const axis = s.shoulderZ ? X : Z;
+    const armDir = s.shoulderZ ? -1 : 1;
+    q.setFromAxisAngle(axis, tilt);
     sc.set(1 / Math.sqrt(stretch), stretch, 1 / Math.sqrt(stretch));
 
-    v.set(bx, by, s.z);
+    v.set(bx, by, bz);
     m.compose(v, q, sc);
     d.bodies.setMatrixAt(i, m);
 
     // The head rides the top of the body, so it has to follow the stretch and
     // the lean rather than sitting at a fixed offset.
     const neck = 0.32 * stretch;
-    v.set(bx + sway * 0.25 - Math.sin(tilt) * neck, by + Math.cos(tilt) * neck, s.z);
+    const leanOut = Math.sin(tilt) * neck * (s.shoulderZ ? 1 : -1);
+    v.set(
+      bx + sway * 0.25 * shx + leanOut * shx,
+      by + Math.cos(tilt) * neck,
+      bz + sway * 0.25 * shz + leanOut * shz
+    );
     m.compose(v, q, one);
     d.heads.setMatrixAt(i, m);
 
@@ -711,11 +740,8 @@ export function animateCrowd(group, dt, excitement = 0) {
     const shoulderY = by + 0.18 * stretch;
     for (let a = 0; a < 2; a++) {
       const sgn = a ? 1 : -1;
-      // Positive Z rotation swings the arm toward +x, so the sign has to match
-      // the shoulder it hangs from -- flip it and both arms cross the chest and
-      // vanish behind the torso.
-      qa.setFromAxisAngle(Z, tilt + sgn * raise * ARM_UP);
-      v.set(bx + sgn * ARM_OUT, shoulderY, s.z);
+      qa.setFromAxisAngle(axis, tilt + armDir * sgn * raise * ARM_UP);
+      v.set(bx + sgn * ARM_OUT * shx, shoulderY, bz + sgn * ARM_OUT * shz);
       m.compose(v, qa, one);
       d.arms.setMatrixAt(i * 2 + a, m);
     }
