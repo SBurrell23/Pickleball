@@ -160,13 +160,16 @@ function buildCrest(kind, colors) {
       break;
     }
     case 'crown': {
-      const band = new THREE.Mesh(new THREE.CylinderGeometry(0.152, 0.16, 0.06, 14), prim);
+      // Always gold, never the kit colour. It is the Extreme reward, and a
+      // crown that matches your shirt is just a hat.
+      const gold = m(0xd8a52a, false, { roughness: 0.35, metalness: 0.35 });
+      const band = new THREE.Mesh(new THREE.CylinderGeometry(0.152, 0.16, 0.06, 14), gold);
       band.position.y = 0.135;
       band.castShadow = true;
       g.add(band);
       for (let i = 0; i < 7; i++) {
         const a = (i / 7) * Math.PI * 2;
-        const spike = new THREE.Mesh(new THREE.ConeGeometry(0.032, 0.085, 4), prim);
+        const spike = new THREE.Mesh(new THREE.ConeGeometry(0.032, 0.085, 4), gold);
         spike.position.set(Math.cos(a) * 0.148, 0.195, Math.sin(a) * 0.148);
         g.add(spike);
       }

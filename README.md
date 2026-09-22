@@ -23,8 +23,8 @@ music track.
 | Mouse | Aim. The reticle replaces the system cursor; the marker on the far court is where the ball will actually land. |
 | Hold left click | **Drive shot.** Full power bar — all the pace you can get, but the sweet spot is a long way up. |
 | Hold right click | **Dink shot.** Half-length bar — sweet spot in half the time, but it can never hit hard. |
-| Release | Swing. Stop the marker in the sweet spot. |
-| `Space` | Hold while swinging for a softer, loopier ball. |
+| Release | Swing. Stop the marker in the sweet spot. Let the bar fill all the way into the red and you have **choked** — the ball is netted or long, every time. |
+| `Space` | Hold during a **drive** to loop it into a lob. Does nothing on a dink — that is already the soft shot. |
 | `Shift` | Dash. Costs stamina. |
 | `Esc` | Pause. |
 
@@ -52,45 +52,80 @@ actually decides rallies — *floats*, sitting the ball up for a smash. The
 paddle is attached to nothing: it hovers beside the player, drifts toward
 wherever you are aiming, and locks to the swing side once you commit.
 
-## Characters
+## You, and the eleven
 
-Six of them, and each is good at exactly one thing — the pick is a question
-about how you want to play, not which numbers are biggest. Shot power and
-wind-up speed are deliberately **not** stats: they are identical for everyone,
-because a power stat is an obvious pick rather than a choice.
+There is no character select. The human side of the net is one fixed stat
+line — dead average on every axis — and your own stats are not shown anywhere,
+because there is nothing in them to read. A match is decided by how you play
+it, not by which card you picked on the menu.
 
-| Character | Specialty | |
-| --- | --- | --- |
-| Volley | All-rounder | Baseline in everything. |
-| Spot | Control | A mistimed shot still lands near where it was aimed. |
-| Zip | Speed | Runs and dashes faster. |
-| Stretch | Reach | Meets the ball further out, sideways *and* overhead. |
-| Bulwark | Dink | Wider sweet spot on the kitchen needle and the short bar. |
-| Ace | Drive | Wider sweet spot on the full power bar. |
+What you *do* choose is how you turn up: name, kit colour, paddle colour, skin
+tone, a shirt style and headwear, saved locally and carried into every mode
+including online. Secondary and trim colours are derived from the kit rather
+than picked separately — two free colour choices on one garment is how you get
+a kit that looks like a mistake. The body silhouette is deliberately not
+customisable: `build.scale` feeds the paddle's reach height in
+`sim.stepPlayer`, so letting people choose how tall they are would be a stat
+dressed up as a cosmetic.
+
+The stats live on the other side of the net now. Eleven rivals, each good at
+one thing and all of them stronger than you on paper:
 
 | Stat | What it actually drives |
 | --- | --- |
-| Speed | Top running speed and dash distance. Nothing to do with your shots. |
-| Reach | How far the paddle can meet the ball — both out to the side and overhead. |
-| Control | How close a mistimed shot still lands to where you aimed. |
+| Speed | Top running speed and dash distance. Nothing to do with shots. |
+| Reach | How far the paddle can meet the ball — out to the side and overhead. |
+| Control | How close a mistimed shot still lands to where it was aimed. |
 | Drive | Sweet-spot width on the full power bar. |
 | Dink | Sweet-spot width on the kitchen needle and the short bar. |
 
-Hovering a stat in the character screen explains it. The roster was tuned
-against measurement rather than feel — `tools/roster.mjs` plays a round-robin
-and then a single-stat sensitivity sweep, moving one stat on a clone and
-playing it against its unmodified twin. That is how the ranges were set: reach
-is the strongest single lever in the game, so its spread is deliberately the
-narrowest, while control needed its effect nearly doubled before it decided
-anything at all.
+A scouting card before each season match shows what you are walking into.
+`tools/roster.mjs` sweeps one stat at a time against the human line and then
+plays every rival at full strength against it; that is how the ranges were
+set, and how a pure control specialist was caught losing to the baseline
+(control measures as the weakest lever in the game, so she had to be rounded
+out rather than inflated).
 
-It also caught two outright bugs. Power above 1.0 did nothing, because the
-flight-time lerp clamped it — a power character's stat stopped mattering the
-moment they struck a ball cleanly. And the bots ran flat out until 10cm from
-their target and overshot it, which made a *faster* character measure as a
-worse one. Worth knowing when reading those numbers: they are bot-versus-bot,
-and the bots time a drive well regardless of its sweet-spot width, so Drive and
-Dink matter more for a human than the sweep suggests.
+## Season
+
+A ladder of rivals faced one at a time, on each of the four difficulties.
+Easy is three matches, Normal five, Hard seven, Extreme the full eleven. Every
+ladder opens against the warm-up and finishes against the champion, so a
+three-match season is a whole season rather than the first third of one.
+
+You get three lives. Losing costs one and puts you back against the same
+rival — the ladder never moves on without you. Two thirds of the way up you
+are handed a fourth, which on the full eleven is exactly after the seventh.
+Quitting mid-match forfeits it, or the lives would be decorative. Clearing a
+difficulty unlocks cosmetics; clearing all four unlocks the lot.
+
+Both the difficulty of the opposition and the size of their stat sheet ramp
+across the ladder and across the four difficulties, and the shape of that was
+measured rather than guessed. `tools/seasontest.mjs` stands a baseline-stat
+bot at three calibres of play against every rung of every ladder:
+
+```
+strong player   easy      100 100 100
+                normal    100 100  88  63  50
+                hard      100  63  75 100  63  50  38
+                extreme   100  75 100  50  38  75  50  50  25  13  13
+```
+
+Easy is an on-ramp a weak player clears; Extreme's last rungs sit around 13%
+for the strongest bot, which is a wall rather than a brick. The first pass had
+the top of every ladder at a flat 0% for every calibre of player, because
+stacking a rival's full paper sheet on top of the top of the skill band leaves
+nothing to beat — Extreme now stops short of both.
+
+## Achievements
+
+Fifty of them, across season, match, shotmaking, style, online and milestones.
+Every one is decided from two things: a summary of the match that just
+finished and a tally kept across matches. None of them peek at live game
+state, which is what makes `tools/progresstest.mjs` able to check — without a
+browser — that an 11-0 flawless win earns six specific achievements, that a
+heavy defeat earns none, and that a milestone fires on the match that crosses
+it rather than the one after.
 
 ## Rules
 
@@ -115,6 +150,12 @@ Real pickleball rules, because they are what make the two meters matter:
 Host a room, share the five-character code, and your opponent joins. The
 connection is browser-to-browser over WebRTC; the only server involved is the
 public PeerJS signalling server used to introduce the two peers.
+
+Both players bring their own look. The whole appearance travels with the
+profile rather than an id, because with custom players there is nothing the
+other side could look anyone up by. A peer's look is accepted as theirs — we
+cannot audit somebody else's unlocks — but it is sanitised down to items this
+build can actually draw before anything renders it.
 
 The netcode is host-authoritative:
 
@@ -146,10 +187,12 @@ Graphics, audio and feel are all adjustable from the menu and persist locally.
   screen shake, FPS counter. Field of view is deliberately not a setting: the
   camera framing and the mouse-to-court aim mapping are tuned around one lens.
 - **Audio** — master, effects, music and crowd ambience, plus mute-on-blur.
-- **Gameplay** — CPU difficulty (Easy / Normal / Hard, also pickable straight
-  from the pre-match screen), timing-window width (a comfort option that widens
-  both sweet spots), camera mode, aim sensitivity, landing marker toggle, and
-  colourblind palettes.
+- **Gameplay** — CPU difficulty (Easy / Normal / Hard / Extreme, also pickable
+  straight from the exhibition screen), camera mode, aim sensitivity, landing
+  marker toggle, and colourblind palettes. Nothing here changes what the
+  simulation does to a shot: a slider that widened the sweet spot used to live
+  in this list and was removed once it was measured, because it more than
+  doubled a player's perfect rate and the host never validated it.
 - **Cursor** — the system cursor is hidden during a match and the reticle you
   aim with replaces it, so its shape, colour and size are configurable, with a
   live preview drawn over the four court colours it has to stay readable on.
@@ -173,11 +216,13 @@ Then open http://localhost:8124.
 There is no build and no dependency install — `vendor/` holds pinned copies of
 Three.js and PeerJS so the deployed site is self-contained.
 
-Two headless harnesses run in CI on every push:
+Four headless harnesses run in CI on every push:
 
 ```bash
 node tools/importcheck.mjs   # every module parses and its imports resolve
 node tools/simtest.mjs       # rules, scoring and AI balance over many matches
+node tools/seasontest.mjs    # the season ladder still ramps, on all four
+node tools/progresstest.mjs  # lives arithmetic and achievement conditions
 ```
 
 `simtest.mjs` plays full matches bot-versus-bot and reports rally length, why
@@ -192,6 +237,17 @@ Singles and doubles are checked separately and against different bands — four
 players cover the court far better than two, so doubles rallies are genuinely
 longer and holding both to one number would either mask a broken singles game or
 flag a healthy doubles one.
+
+`seasontest.mjs` is the balance guard for the ladder: it plays every rung of
+every difficulty against three calibres of baseline player and asserts that
+each ladder gets harder along its own length, that Easy stays clearable by a
+weak one, that Extreme is not unwinnable from its first rung, and that the four
+difficulties are actually ordered. `progresstest.mjs` covers the bookkeeping
+that is easy to get subtly wrong and impossible to eyeball — when the fourth
+life lands on each of the four ladder lengths, that a loss does not advance the
+ladder, that a locked cosmetic sitting in local storage is discarded rather
+than honoured, and which achievements a given match should and should not hand
+out. Around 350 assertions, and they run in under a second.
 
 ## Layout
 
@@ -209,7 +265,11 @@ src/
     sim.js            authoritative simulation: movement, ball, rules, scoring
     swing.js          the two timing mini-games
     ai.js             CPU opponents
-    characters.js     roster and stat curves
+    avatar.js         the player: fixed stats, chosen look, cosmetic unlocks
+    enemies.js        the eleven rivals and how they scale up the ladder
+    season.js         ladder state, lives, persistence
+    achievements.js   definitions and the tally they are judged against
+    characters.js     resolves a roster entry into a definition
     game.js           ties simulation, rendering, netcode and input together
   net/                PeerJS transport, snapshot interpolation, reconciliation
   render/             procedural court, character rigs, effects, renderer
